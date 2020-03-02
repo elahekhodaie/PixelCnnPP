@@ -6,7 +6,6 @@ import pcnnpp.config as config
 rescaling = lambda x: (x - .5) * 2.
 rescaling_inv = lambda x: .5 * x + .5
 default_transform = transforms.Compose([transforms.ToTensor(), rescaling])
-kwargs = {'num_workers': 1, 'pin_memory': True, 'drop_last': True}
 
 
 class DatasetSelection(Dataset):
@@ -17,7 +16,7 @@ class DatasetSelection(Dataset):
                  classes=tuple(range(0, 9)),
                  transform=default_transform,
                  target_transform=lambda x: x,
-                 download=False,
+                 download=True,
                  ):
         self.whole_data = dataset(root, train, transform=transform, target_transform=target_transform,
                                   download=download)
@@ -37,6 +36,7 @@ class DatasetSelection(Dataset):
                        num_workers=config.dataloader_num_workers,
                        pin_memory=config.dataloader_pin_memory,
                        drop_last=config.dataloader_drop_last,
+                       sampler=None
                        ):
         return DataLoader(self, batch_size, shuffle, num_workers=num_workers, pin_memory=pin_memory,
-                          drop_last=drop_last)
+                          drop_last=drop_last, sampler=sampler)

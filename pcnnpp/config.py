@@ -20,12 +20,18 @@ dataloader_shuffle = True
 dataloader_drop_last = True
 
 # device
+use_tpu = False
+num_cores = 8
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if use_tpu:
+    import torch_xla.core.xla_model as xm
+
+    device = xm.xla_device()
 
 # model
 nr_resnet = 5  # Number of residual blocks per stage of the model
-nr_filters = 100  # number of filters to use across the model. (Higher = larger model)
-nr_logistic_mix = 3  # Number of logistic components in the mixture. (Higher = more flexible model)
+nr_filters = 160  # number of filters to use across the model. (Higher = larger model)
+nr_logistic_mix = 5  # Number of logistic components in the mixture. (Higher = more flexible model)
 lr = 0.0002  # Base learning rate
 lr_decay = 0.999995  # Learning rate decay, applied every step of the optimization
 max_epochs = 5000  # How many epochs to run in total
