@@ -23,13 +23,8 @@ if config.use_arg_parser:
 
     config = pcnnpp.utils.argparser.parse_args()
 
-dataset_train = DatasetSelection(train=True, classes=config.normal_classes)
-dataset_test = DatasetSelection(train=True, classes=config.test_classes)
-
-input_shape = dataset_test.input_shape()
-loss_function = get_loss_function(input_shape)
-
 # reproducibility
+torch.set_default_tensor_type('torch.FloatTensor')
 torch.manual_seed(config.seed)
 np.random.seed(config.seed)
 
@@ -39,15 +34,24 @@ model_name = 'pcnn_lr:{:.5f}_nr-resnet{}_nr-filters{}'.format(config.lr, config.
 def train():
     print('starting training')
     # starting up data loaders
+    print("loading data")
+    dataset_train = DatasetSelection(train=True, classes=config.normal_classes)
+    dataset_test = DatasetSelection(train=True, classes=config.test_classes)
+
     train_sampler = None
     if config.use_tpu:
+        print('creating tpu sampler')
         train_sampler = torch.utils.data.distributed.DistributedSampler(
             dataset_train,
             num_replicas=xm.xrt_world_size(),
             rank=xm.get_ordinal(),
             shuffle=True)
-    print("loading data")
-    test_loader = dataset_test.get_dataloader()
+        print('tpu sampler created')
+
+    input_shape = dataset_test.input_shape()
+    loss_function = get_loss_function(input_shape)
+
+    test_loader = dataset_test.get_dataloader(shuffle=False)
     train_loader = dataset_train.get_dataloader(sampler=train_sampler)
 
     # setting up tensorboard data summerizer
@@ -151,7 +155,6 @@ def train():
 
 if config.use_tpu:
     def trainer(rank):
-        torch.set_default_tensor_type('torch.FloatTensor')
         train()
 
 
