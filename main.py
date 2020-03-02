@@ -12,10 +12,11 @@ from pcnnpp.utils.functions import sample, get_loss_function
 
 if config.use_arg_parser:
     import pcnnpp.utils.argparser
+
     config = pcnnpp.utils.argparser.parse_args()
 
-dataset_train = DatasetSelection(train=True, classes=[5])
-dataset_test = DatasetSelection(train=False, classes=[5, 6])
+dataset_train = DatasetSelection(train=True, classes=config.normal_classes)
+dataset_test = DatasetSelection(train=True, classes=config.test_classes)
 train_loader = dataset_train.get_dataloader()
 test_loader = dataset_test.get_dataloader()
 

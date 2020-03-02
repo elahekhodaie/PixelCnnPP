@@ -11,7 +11,7 @@ kwargs = {'num_workers': 1, 'pin_memory': True, 'drop_last': True}
 
 class DatasetSelection(Dataset):
     def __init__(self,
-                 dataset=datasets.MNIST,
+                 dataset=config.dataset,
                  root=config.data_dir,
                  train=True,
                  classes=tuple(range(0, 9)),

@@ -1,9 +1,13 @@
 import torch
+from torchvision import datasets
+
 # data I/O
 use_arg_parser = False  # whether or not to use arg_parser
 data_dir = 'data'  # Location for the dataset
 save_dir = 'models'  # Location for parameter checkpoints and samples
-dataset = 'mnist'  # Can be either cifar|mnist
+dataset = datasets.MNIST
+normal_classes = [8]
+test_classes = [1, 3, 8]
 print_every = 1  # how many iterations between print statements
 save_interval = 10  # Every how many epochs to write checkpoint/samples?
 load_params = None  # Restore training from previous model checkpoint?
