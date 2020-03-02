@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
+from pcnnpp import config
 from torch.nn.utils import weight_norm as wn
 import numpy as np
 
@@ -51,10 +52,7 @@ def discretized_mix_logistic_loss(x, l):
     # here and below: getting the means and adjusting them based on preceding
     # sub-pixels
     x = x.contiguous()
-    if torch.cuda.is_available():
-        x = x.unsqueeze(-1) + Variable(torch.zeros(xs + [nr_mix]).cuda(), requires_grad=False)
-    else:
-        x = x.unsqueeze(-1) + Variable(torch.zeros(xs + [nr_mix]), requires_grad=False)
+    x = x.unsqueeze(-1) + Variable(torch.zeros(xs + [nr_mix]).to(config.device), requires_grad=False)
     m2 = (means[:, :, :, 1, :] + coeffs[:, :, :, 0, :]
           * x[:, :, :, 0, :]).view(xs[0], xs[1], xs[2], 1, nr_mix)
 
@@ -120,10 +118,7 @@ def discretized_mix_logistic_loss_1d(x, l):
     # here and below: getting the means and adjusting them based on preceding
     # sub-pixels
     x = x.contiguous()
-    if torch.cuda.is_available():
-        x = x.unsqueeze(-1) + Variable(torch.zeros(xs + [nr_mix]).cuda(), requires_grad=False)
-    else:
-        x = x.unsqueeze(-1) + Variable(torch.zeros(xs + [nr_mix]), requires_grad=False)
+    x = x.unsqueeze(-1) + Variable(torch.zeros(xs + [nr_mix]).to(config.device), requires_grad=False)
     # means = torch.cat((means[:, :, :, 0, :].unsqueeze(3), m2, m3), dim=3)
     centered_x = x - means
     inv_stdv = torch.exp(-log_scales)
@@ -156,12 +151,12 @@ def discretized_mix_logistic_loss_1d(x, l):
 def to_one_hot(tensor, n, fill_with=1.):
     # we perform one hot encore with respect to the last axis
     one_hot = torch.FloatTensor(tensor.size() + (n,)).zero_()
-    if tensor.is_cuda: one_hot = one_hot.cuda()
+    if tensor.is_cuda: one_hot = one_hot.to(config.device)
     one_hot.scatter_(len(tensor.size()), tensor.unsqueeze(-1), fill_with)
     return Variable(one_hot)
 
 
-def sample_from_discretized_mix_logistic_1d(l, nr_mix):
+def sample_from_discretized_mix_logistic_1d(l, nr_mix=config.nr_logistic_mix):
     # Pytorch ordering
     l = l.permute(0, 2, 3, 1)
     ls = [int(y) for y in l.size()]
@@ -173,7 +168,7 @@ def sample_from_discretized_mix_logistic_1d(l, nr_mix):
 
     # sample mixture indicator from softmax
     temp = torch.FloatTensor(logit_probs.size())
-    if l.is_cuda: temp = temp.cuda()
+    if l.is_cuda: temp = temp.to(config.device)
     temp.uniform_(1e-5, 1. - 1e-5)
     temp = logit_probs.data - torch.log(- torch.log(temp))
     _, argmax = temp.max(dim=3)
@@ -185,7 +180,7 @@ def sample_from_discretized_mix_logistic_1d(l, nr_mix):
     log_scales = torch.clamp(torch.sum(
         l[:, :, :, :, nr_mix:2 * nr_mix] * sel, dim=4), min=-7.)
     u = torch.FloatTensor(means.size())
-    if l.is_cuda: u = u.cuda()
+    if l.is_cuda: u = u.to(config.device)
     u.uniform_(1e-5, 1. - 1e-5)
     u = Variable(u)
     x = means + torch.exp(log_scales) * (torch.log(u) - torch.log(1. - u))
@@ -194,7 +189,7 @@ def sample_from_discretized_mix_logistic_1d(l, nr_mix):
     return out
 
 
-def sample_from_discretized_mix_logistic(l, nr_mix):
+def sample_from_discretized_mix_logistic(l, nr_mix=config.nr_logistic_mix):
     # Pytorch ordering
     l = l.permute(0, 2, 3, 1)
     ls = [int(y) for y in l.size()]
@@ -205,7 +200,7 @@ def sample_from_discretized_mix_logistic(l, nr_mix):
     l = l[:, :, :, nr_mix:].contiguous().view(xs + [nr_mix * 3])
     # sample mixture indicator from softmax
     temp = torch.FloatTensor(logit_probs.size())
-    if l.is_cuda: temp = temp.cuda()
+    temp = temp.to(config.device)
     temp.uniform_(1e-5, 1. - 1e-5)
     temp = logit_probs.data - torch.log(- torch.log(temp))
     _, argmax = temp.max(dim=3)
@@ -221,7 +216,7 @@ def sample_from_discretized_mix_logistic(l, nr_mix):
     # sample from logistic & clip to interval
     # we don't actually round to the nearest 8bit value when sampling
     u = torch.FloatTensor(means.size())
-    if l.is_cuda: u = u.cuda()
+    u = u.to(config.device)
     u.uniform_(1e-5, 1. - 1e-5)
     u = Variable(u)
     x = means + torch.exp(log_scales) * (torch.log(u) - torch.log(1. - u))
@@ -272,3 +267,28 @@ def load_part_of_model(model, path):
                 print(e)
                 pass
     print('added %s of params:' % (added / float(len(model.state_dict().keys()))))
+
+
+def get_loss_function(input_shape):
+    if input_shape[2] == 3:
+        return discretized_mix_logistic_loss
+    return discretized_mix_logistic_loss_1d
+
+
+def get_sampler_function(input_shape):
+    if input_shape[2] == 3:
+        return sample_from_discretized_mix_logistic
+    return sample_from_discretized_mix_logistic_1d
+
+
+def sample(model, input_shape):
+    model.train(False)
+    data = torch.zeros(config.sample_batch_size, input_shape[0], input_shape[1], input_shape[2])
+    data = data.to(config.device)
+    for i in range(input_shape[1]):
+        for j in range(input_shape[2]):
+            data_v = Variable(data, volatile=True)
+            out = model(data_v, sample=True)
+            out_sample = get_sampler_function(input_shape)(out)
+            data[:, :, i, j] = out_sample.data[:, :, i, j]
+    return data

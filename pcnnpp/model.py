@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pcnnpp.layers import *
 from pcnnpp.utils.functions import *
-import numpy as np
 
 
 class PixelCNNLayer_up(nn.Module):
@@ -108,12 +107,12 @@ class PixelCNN(nn.Module):
         if self.init_padding is None and not sample:
             xs = [int(y) for y in x.size()]
             padding = torch.ones(xs[0], 1, xs[2], xs[3], requires_grad=False)
-            self.init_padding = padding.cuda() if x.is_cuda else padding
+            self.init_padding = padding.to(config.device)
 
         if sample:
             xs = [int(y) for y in x.size()]
             padding = torch.ones(xs[0], 1, xs[2], xs[3], requires_grad=False)
-            padding = padding.cuda() if x.is_cuda else padding
+            padding = padding.to(config.device)
             x = torch.cat((x, padding), 1)
 
         # Up pass
