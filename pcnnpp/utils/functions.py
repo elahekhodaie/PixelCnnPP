@@ -52,7 +52,7 @@ def discretized_mix_logistic_loss(x, l):
     # here and below: getting the means and adjusting them based on preceding
     # sub-pixels
     x = x.contiguous()
-    x = x.unsqueeze(-1) + Variable(torch.zeros(xs + [nr_mix]).to(config.device), requires_grad=False)
+    x = x.unsqueeze(-1) + torch.zeros(xs + [nr_mix], device=config.device, requires_grad=False)
     m2 = (means[:, :, :, 1, :] + coeffs[:, :, :, 0, :]
           * x[:, :, :, 0, :]).view(xs[0], xs[1], xs[2], 1, nr_mix)
 
@@ -215,7 +215,7 @@ def sample_from_discretized_mix_logistic(l, nr_mix=config.nr_logistic_mix):
         l[:, :, :, :, 2 * nr_mix:3 * nr_mix]) * sel, dim=4)
     # sample from logistic & clip to interval
     # we don't actually round to the nearest 8bit value when sampling
-    u = torch.FloatTensor(means.size())
+    u = torch.FloatTensor(means.size(), device=config.device)
     u = u.to(config.device)
     u.uniform_(1e-5, 1. - 1e-5)
     u = Variable(u)
@@ -283,8 +283,7 @@ def get_sampler_function(input_shape):
 
 def sample(model, input_shape):
     model.train(False)
-    data = torch.zeros(config.sample_batch_size, input_shape[0], input_shape[1], input_shape[2])
-    data = data.to(config.device)
+    data = torch.zeros(config.sample_batch_size, input_shape[0], input_shape[1], input_shape[2], device=config.device)
     for i in range(input_shape[1]):
         for j in range(input_shape[2]):
             data_v = Variable(data, volatile=True)

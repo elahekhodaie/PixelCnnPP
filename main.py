@@ -28,7 +28,7 @@ torch.set_default_tensor_type('torch.FloatTensor')
 torch.manual_seed(config.seed)
 np.random.seed(config.seed)
 
-model_name = 'pcnn_lr:{:.5f}_nr-resnet{}_nr-filters{}'.format(config.lr, config.nr_resnet, config.nr_filters)
+model_name = 'pcnnpp{:.5f}_{}_{}_{}'.format(config.lr, config.nr_resnet, config.nr_filters, config.nr_logistic_mix)
 
 
 def train():
@@ -39,6 +39,7 @@ def train():
     dataset_test = DatasetSelection(train=True, classes=config.test_classes)
 
     train_sampler = None
+    test_sampler = None
     if config.use_tpu:
         print('creating tpu sampler')
         train_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -46,13 +47,18 @@ def train():
             num_replicas=xm.xrt_world_size(),
             rank=xm.get_ordinal(),
             shuffle=True)
+        test_sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset_train,
+            num_replicas=xm.xrt_world_size(),
+            rank=xm.get_ordinal(),
+            shuffle=True)
+
         print('tpu sampler created')
+    train_loader = dataset_train.get_dataloader(sampler=train_sampler, shuffle=False)
+    test_loader = dataset_test.get_dataloader(sampler=test_sampler, shuffle=False)
 
     input_shape = dataset_test.input_shape()
     loss_function = get_loss_function(input_shape)
-
-    test_loader = dataset_test.get_dataloader(shuffle=False)
-    train_loader = dataset_train.get_dataloader(sampler=train_sampler)
 
     # setting up tensorboard data summerizer
     writer = SummaryWriter(log_dir=os.path.join('runs', model_name))
@@ -110,6 +116,7 @@ def train():
         del loss, output
 
     def test_loop(data_loader):
+        global writes
 
         if torch.cuda.is_available():
             torch.cuda.synchronize(device=config.device)
@@ -154,11 +161,19 @@ def train():
 
 
 if config.use_tpu:
-    def trainer(rank):
+    def train_on_tpu():
+        def trainer(rank,CONFIG):
+            global config
+            config = CONFIG
+            config.device = xm.xla_device()
+            torch.set_default_tensor_type('torch.FloatTensor')
+            train()
+
+        xmp.spawn(trainer, args=(config,), nprocs=config.num_cores,
+                  start_method='fork')
+
+if config.run:
+    if config.use_tpu:
+        train_on_tpu()
+    else:
         train()
-
-
-    xmp.spawn(trainer, nprocs=config.num_cores,
-              start_method='fork')
-else:
-    train()

@@ -106,13 +106,11 @@ class PixelCNN(nn.Module):
         # similar as done in the tf repo :  
         if self.init_padding is None and not sample:
             xs = [int(y) for y in x.size()]
-            padding = torch.ones(xs[0], 1, xs[2], xs[3], requires_grad=False)
-            self.init_padding = padding.to(config.device)
+            self.init_padding = padding = torch.ones(xs[0], 1, xs[2], xs[3], requires_grad=False, device=config.device)
 
         if sample:
             xs = [int(y) for y in x.size()]
-            padding = torch.ones(xs[0], 1, xs[2], xs[3], requires_grad=False)
-            padding = padding.to(config.device)
+            padding = torch.ones(xs[0], 1, xs[2], xs[3], requires_grad=False, device=config.device)
             x = torch.cat((x, padding), 1)
 
         # Up pass
