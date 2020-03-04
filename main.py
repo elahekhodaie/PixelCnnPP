@@ -29,9 +29,15 @@ torch.manual_seed(config.seed)
 np.random.seed(config.seed)
 
 model_name = 'pcnnpp{:.5f}_{}_{}_{}'.format(config.lr, config.nr_resnet, config.nr_filters, config.nr_logistic_mix)
+model = None
+dataset_train = None
+dataset_test = None
 
 
 def train():
+    global model
+    validation_losses = []
+    train_losses = []
     print('starting training')
     # starting up data loaders
     print("loading training data")
@@ -64,7 +70,7 @@ def train():
     loss_function = get_loss_function(input_shape)
 
     # setting up tensorboard data summerizer
-    writer = SummaryWriter(log_dir=os.path.join('runs', model_name))
+    writer = SummaryWriter(log_dir=os.path.join(config.log_dir, model_name))
 
     # initializing model
     print("initializing model")
@@ -108,7 +114,7 @@ def train():
                     writer.add_scalar('train/bpd', (train_loss / deno), writes + new_writes)
 
                 print('\t{:3d}/{:3d} - loss : {:.4f}, time : {:.3f}s'.format(
-                    batch_idx // config.print_every,
+                    batch_idx // config.print_every + 1,
                     len(train_loader) // config.print_every,
                     (train_loss / deno),
                     (time.time() - time_)
@@ -116,41 +122,43 @@ def train():
                 train_loss = 0.
                 new_writes += 1
                 time_ = time.time()
-        del loss, output
-        return new_writes, train_loss
+            del input, _, loss, output
+
+        return new_writes, (train_loss / deno)
 
     def test_loop(data_loader, writes=0):
         if torch.cuda.is_available():
             torch.cuda.synchronize(device=config.device)
         model.eval()
         test_loss = 0.
-        for batch_idx, (input, _) in enumerate(data_loader):
-            input = input.to(config.device, non_blocking=True)
-            output = model(input)
-            loss = loss_function(input, output)
-            test_loss += loss
-            del loss, output
+        with torch.no_grad():
+            for batch_idx, (input, _) in enumerate(data_loader):
+                input = input.to(config.device, non_blocking=True)
+                output = model(input)
+                loss = loss_function(input, output)
+                test_loss += loss
+                del loss, output
 
-        deno = batch_idx * config.batch_size * np.prod(input_shape) * np.log(2.)
-        writer.add_scalar('test/bpd', (test_loss / deno), writes)
-        print('\t{}epoch {:4} validation loss : {:.4f}'.format(
-            '' if not config.use_tpu else xm.get_ordinal(),
-            epoch,
-            (test_loss / deno)
-        ),
-            flush=True
-        )
+            deno = batch_idx * config.batch_size * np.prod(input_shape) * np.log(2.)
+            writer.add_scalar('test/bpd', (test_loss / deno), writes)
+            print('\t{}epoch {:4} validation loss : {:.4f}'.format(
+                '' if not config.use_tpu else xm.get_ordinal(),
+                epoch,
+                (test_loss / deno)
+            ),
+                flush=True
+            )
 
-        if (epoch + 1) % config.save_interval == 0:
-            torch.save(model.state_dict(), 'models/{}_{}.pth'.format(model_name, epoch))
-            print('\tsampling epoch {:4}'.format(
-                epoch
-            ))
-            sample_t = sample(model, input_shape)
-            sample_t = rescaling_inv(sample_t)
-            utils.save_image(sample_t, 'images/{}_{}.png'.format(model_name, epoch),
-                             nrow=5, padding=0)
-        return test_loss
+            if (epoch + 1) % config.save_interval == 0:
+                torch.save(model.state_dict(), config.models_dir + '/{}_{}.pth'.format(model_name, epoch))
+                print('\tsampling epoch {:4}'.format(
+                    epoch
+                ))
+                sample_t = sample(model, input_shape)
+                sample_t = rescaling_inv(sample_t)
+                utils.save_image(sample_t, config.samples_dir + '/{}_{}.png'.format(model_name, epoch),
+                                 nrow=5, padding=0)
+            return test_loss / deno
 
     writes = 0
     for epoch in range(config.max_epochs):
@@ -161,6 +169,7 @@ def train():
             xm.master_print("\tFinished training epoch {}".format(epoch))
         else:
             new_writes, train_loss = train_loop(train_loader, writes)
+            train_losses.append(train_loss)
             writes += new_writes
             print("\tFinished training epoch {}".format(
                 epoch,
@@ -170,8 +179,10 @@ def train():
             para_loader = pl.ParallelLoader(test_loader, [config.device])
             test_loop(para_loader.per_device_loader(config.device), writes)
         else:
-            test_loop(test_loader, writes)
+            validation_loss = test_loop(test_loader, writes)
+            validation_losses.append(validation_loss)
         writes += 1
+    return train_losses, validation_losses
 
 
 if config.use_tpu:

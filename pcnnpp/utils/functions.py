@@ -150,23 +150,27 @@ def discretized_mix_logistic_loss_1d(x, l):
 
 def to_one_hot(tensor, n, fill_with=1.):
     # we perform one hot encore with respect to the last axis
-    one_hot = torch.FloatTensor(tensor.size() + (n,), device=config.device).zero_()
+    one_hot = torch.FloatTensor(tensor.size() + (n,)).zero_()
+    one_hot = one_hot.to(config.device)
     one_hot.scatter_(len(tensor.size()), tensor.unsqueeze(-1), fill_with)
-    return Variable(one_hot)
+    return one_hot
 
 
 def sample_from_discretized_mix_logistic_1d(l, nr_mix=config.nr_logistic_mix):
     # Pytorch ordering
     l = l.permute(0, 2, 3, 1)
+
     ls = [int(y) for y in l.size()]
     xs = ls[:-1] + [1]  # [3]
 
     # unpack parameters
     logit_probs = l[:, :, :, :nr_mix]
     l = l[:, :, :, nr_mix:].contiguous().view(xs + [nr_mix * 2])  # for mean, scale
-
+    l = l.to(config.device)
+    logit_probs = logit_probs.to(config.device)
     # sample mixture indicator from softmax
-    temp = torch.FloatTensor(logit_probs.size(), device=config.device)
+    temp = torch.FloatTensor(logit_probs.size())
+    temp = temp.to(config.device)
     temp.uniform_(1e-5, 1. - 1e-5)
     temp = logit_probs.data - torch.log(- torch.log(temp))
     _, argmax = temp.max(dim=3)
@@ -177,9 +181,9 @@ def sample_from_discretized_mix_logistic_1d(l, nr_mix=config.nr_logistic_mix):
     means = torch.sum(l[:, :, :, :, :nr_mix] * sel, dim=4)
     log_scales = torch.clamp(torch.sum(
         l[:, :, :, :, nr_mix:2 * nr_mix] * sel, dim=4), min=-7.)
-    u = torch.FloatTensor(means.size(), device=config.device)
+    u = torch.FloatTensor(means.size())
     u.uniform_(1e-5, 1. - 1e-5)
-    u = Variable(u)
+    u = u.to(config.device)
     x = means + torch.exp(log_scales) * (torch.log(u) - torch.log(1. - u))
     x0 = torch.clamp(torch.clamp(x[:, :, :, 0], min=-1.), max=1.)
     out = x0.unsqueeze(1)
@@ -196,7 +200,7 @@ def sample_from_discretized_mix_logistic(l, nr_mix=config.nr_logistic_mix):
     logit_probs = l[:, :, :, :nr_mix]
     l = l[:, :, :, nr_mix:].contiguous().view(xs + [nr_mix * 3])
     # sample mixture indicator from softmax
-    temp = torch.FloatTensor(logit_probs.size(), device=config.device)
+    temp = torch.FloatTensor(logit_probs.size())
     temp.uniform_(1e-5, 1. - 1e-5)
     temp = logit_probs.data - torch.log(- torch.log(temp))
     _, argmax = temp.max(dim=3)
@@ -211,7 +215,7 @@ def sample_from_discretized_mix_logistic(l, nr_mix=config.nr_logistic_mix):
         l[:, :, :, :, 2 * nr_mix:3 * nr_mix]) * sel, dim=4)
     # sample from logistic & clip to interval
     # we don't actually round to the nearest 8bit value when sampling
-    u = torch.FloatTensor(means.size(), device=config.device)
+    u = torch.FloatTensor(means.size())
     u.uniform_(1e-5, 1. - 1e-5)
     u = Variable(u)
     x = means + torch.exp(log_scales) * (torch.log(u) - torch.log(1. - u))
@@ -278,11 +282,11 @@ def get_sampler_function(input_shape):
 
 def sample(model, input_shape):
     model.train(False)
-    data = torch.zeros(config.sample_batch_size, input_shape[0], input_shape[1], input_shape[2], device=config.device)
+    data = torch.zeros(config.sample_batch_size, input_shape[0], input_shape[1], input_shape[2],device=config.device)
     for i in range(input_shape[1]):
         for j in range(input_shape[2]):
-            data_v = Variable(data, volatile=True)
-            out = model(data_v, sample=True)
+            data_v = data
+            out = model(data_v, sample=True).to(config.device)
             out_sample = get_sampler_function(input_shape)(out)
             data[:, :, i, j] = out_sample.data[:, :, i, j]
     return data
