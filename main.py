@@ -34,9 +34,10 @@ model_name = 'pcnnpp{:.5f}_{}_{}_{}'.format(config.lr, config.nr_resnet, config.
 def train():
     print('starting training')
     # starting up data loaders
-    print("loading data")
+    print("loading training data")
     dataset_train = DatasetSelection(train=True, classes=config.normal_classes)
-    dataset_test = DatasetSelection(train=True, classes=config.test_classes)
+    print('loading validation/test data')
+    dataset_test = DatasetSelection(train=False, classes=config.normal_classes)
 
     train_sampler = None
     test_sampler = None
@@ -52,7 +53,6 @@ def train():
             num_replicas=xm.xrt_world_size(),
             rank=xm.get_ordinal(),
             shuffle=True)
-
         print('tpu sampler created')
     train_loader = dataset_train.get_dataloader(sampler=train_sampler, shuffle=False)
     test_loader = dataset_test.get_dataloader(sampler=test_sampler, shuffle=False)
@@ -104,14 +104,17 @@ def train():
                 if not config.use_tpu:
                     writer.add_scalar('train/bpd', (train_loss / deno), writes + new_writes)
 
-                print('{:4d}/{:4d}- {:4d} - loss : {:.4f}, time : {:.4f}'.format(batch_idx, len(train_loader), epoch,
-                                                                                 (train_loss / deno),
-                                                                                 (time.time() - time_)))
+                print('\t{:4d}/{:4d} - loss : {:.4f}, time : {:.3f}s'.format(
+                    batch_idx, len(train_loader),
+                    epoch,
+                    (train_loss / deno),
+                    (time.time() - time_)
+                ))
                 train_loss = 0.
                 new_writes += 1
                 time_ = time.time()
         del loss, output
-        return new_writes
+        return new_writes, train_loss
 
     def test_loop(data_loader, writes=0):
         if torch.cuda.is_available():
@@ -122,31 +125,43 @@ def train():
             input = input.to(config.device, non_blocking=True)
             output = model(input)
             loss = loss_function(input, output)
-            test_loss += loss.data[0]
+            test_loss += loss
             del loss, output
 
         deno = batch_idx * config.batch_size * np.prod(input_shape) * np.log(2.)
         writer.add_scalar('test/bpd', (test_loss / deno), writes)
-        print('{}-epoch {:04}test loss : %s'.format(None if not config.use_tpu else xm.get_ordinal(), epoch,
-                                                    (test_loss / deno)), flush=True)
+        print('\t{}epoch {:4} validation loss : {:.4f}'.format(
+            None if not config.use_tpu else xm.get_ordinal(),
+            epoch,
+            (test_loss / deno)),
+            flush=True
+        )
 
         if (epoch + 1) % config.save_interval == 0:
             torch.save(model.state_dict(), 'models/{}_{}.pth'.format(model_name, epoch))
-            print('sampling...')
+            print('\tsampling epoch {:4}'.format(
+                epoch
+            ))
             sample_t = sample(model, input_shape)
             sample_t = rescaling_inv(sample_t)
             utils.save_image(sample_t, 'images/{}_{}.png'.format(model_name, epoch),
                              nrow=5, padding=0)
+        return test_loss
 
     writes = 0
     for epoch in range(config.max_epochs):
+        print('epoch {:4}'.format(epoch))
         if config.use_tpu:
             para_loader = pl.ParallelLoader(train_loader, [config.device])
             train_loop(para_loader.per_device_loader(config.device), writes)
-            xm.master_print("Finished training epoch {}".format(epoch))
+            xm.master_print("\tFinished training epoch {}".format(epoch))
         else:
-            writes += train_loop(train_loader, writes)
-            print("Finished training epoch {}".format(epoch))
+            new_writes, train_loss = train_loop(train_loader, writes)
+            writes += new_writes
+            print("\tFinished training epoch {} - training loss {}".format(
+                epoch,
+                train_loss / (len(dataset_train) * np.prod(input_shape) * np.log(2.))
+            ))
         scheduler.step(epoch)
         if config.use_tpu:
             para_loader = pl.ParallelLoader(test_loader, [config.device])
@@ -168,7 +183,7 @@ if config.use_tpu:
         xmp.spawn(trainer, args=(config,), nprocs=config.num_cores,
                   start_method='fork')
 
-if True:
+if config.run:
     if config.use_tpu:
         train_on_tpu()
     else:
