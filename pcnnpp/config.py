@@ -17,6 +17,7 @@ test_classes = [1, 3, 8]
 print_every = 50  # how many iterations between print statements
 save_interval = 5  # Every how many epochs to write checkpoint/samples?
 load_params = None  # Restore training from previous model checkpoint?
+start_epoch = 0
 
 # data loader
 batch_size = 16  # Batch size during training per GPU

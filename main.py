@@ -91,6 +91,7 @@ def train():
         if torch.cuda.is_available():
             torch.cuda.synchronize(device=config.device)
         train_loss = 0.
+        last_train_loss = 0.
         new_writes = 0
         time_ = time.time()
         if config.use_tpu:
@@ -119,12 +120,13 @@ def train():
                     (train_loss / deno),
                     (time.time() - time_)
                 ))
+                last_train_loss = train_loss
                 train_loss = 0.
                 new_writes += 1
                 time_ = time.time()
             del input, _, loss, output
 
-        return new_writes, (train_loss / deno)
+        return new_writes, (last_train_loss / deno)
 
     def test_loop(data_loader, writes=0):
         if torch.cuda.is_available():
@@ -161,7 +163,7 @@ def train():
             return test_loss / deno
 
     writes = 0
-    for epoch in range(config.max_epochs):
+    for epoch in range(config.start_epoch, config.max_epochs):
         print('epoch {:4}'.format(epoch))
         if config.use_tpu:
             para_loader = pl.ParallelLoader(train_loader, [config.device])
