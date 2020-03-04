@@ -47,15 +47,18 @@ def train():
             dataset_train,
             num_replicas=xm.xrt_world_size(),
             rank=xm.get_ordinal(),
-            shuffle=True)
+            shuffle=True
+        )
         test_sampler = torch.utils.data.distributed.DistributedSampler(
             dataset_train,
             num_replicas=xm.xrt_world_size(),
             rank=xm.get_ordinal(),
-            shuffle=True)
-        print('tpu sampler created')
-    train_loader = dataset_train.get_dataloader(sampler=train_sampler, shuffle=False)
-    test_loader = dataset_test.get_dataloader(sampler=test_sampler, shuffle=False)
+            shuffle=True
+        )
+        print('tpu samplers created')
+    train_loader = dataset_train.get_dataloader(sampler=train_sampler, shuffle=not config.use_tpu)
+    test_loader = dataset_test.get_dataloader(sampler=test_sampler, shuffle=not config.use_tpu,
+                                              batch_size=config.test_batch_size)
 
     input_shape = dataset_test.input_shape()
     loss_function = get_loss_function(input_shape)
@@ -105,8 +108,8 @@ def train():
                     writer.add_scalar('train/bpd', (train_loss / deno), writes + new_writes)
 
                 print('\t{:4d}/{:4d} - loss : {:.4f}, time : {:.3f}s'.format(
-                    batch_idx, len(train_loader),
-                    epoch,
+                    batch_idx,
+                    len(train_loader),
                     (train_loss / deno),
                     (time.time() - time_)
                 ))
@@ -160,7 +163,7 @@ def train():
             writes += new_writes
             print("\tFinished training epoch {} - training loss {}".format(
                 epoch,
-                train_loss / (len(dataset_train) * np.prod(input_shape) * np.log(2.))
+                train_loss
             ))
         scheduler.step(epoch)
         if config.use_tpu:
