@@ -82,6 +82,7 @@ def train():
         if torch.cuda.is_available():
             torch.cuda.synchronize(device=config.device)
         train_loss = 0.
+        new_writes = 0
         time_ = time.time()
         if config.use_tpu:
             tracker = xm.RateTracker()
@@ -101,18 +102,18 @@ def train():
             if (batch_idx + 1) % config.print_every == 0:
                 deno = config.print_every * config.batch_size * np.prod(input_shape) * np.log(2.)
                 if not config.use_tpu:
-                    writer.add_scalar('train/bpd', (train_loss / deno), writes)
-                    writes += 1
+                    writer.add_scalar('train/bpd', (train_loss / deno), writes + new_writes)
 
                 print('{:4d}/{:4d}- {:4d} - loss : {:.4f}, time : {:.4f}'.format(batch_idx, len(train_loader), epoch,
                                                                                  (train_loss / deno),
                                                                                  (time.time() - time_)))
                 train_loss = 0.
+                new_writes += 1
                 time_ = time.time()
         del loss, output
+        return new_writes
 
-    def test_loop(data_loader, writes=None):
-
+    def test_loop(data_loader, writes=0):
         if torch.cuda.is_available():
             torch.cuda.synchronize(device=config.device)
         model.eval()
@@ -125,9 +126,7 @@ def train():
             del loss, output
 
         deno = batch_idx * config.batch_size * np.prod(input_shape) * np.log(2.)
-        if not config.use_tpu:
-            writer.add_scalar('test/bpd', (test_loss / deno), writes)
-
+        writer.add_scalar('test/bpd', (test_loss / deno), writes)
         print('{}-epoch {:04}test loss : %s'.format(None if not config.use_tpu else xm.get_ordinal(), epoch,
                                                     (test_loss / deno)), flush=True)
 
@@ -146,14 +145,15 @@ def train():
             train_loop(para_loader.per_device_loader(config.device), writes)
             xm.master_print("Finished training epoch {}".format(epoch))
         else:
-            train_loop(train_loader)
+            writes += train_loop(train_loader, writes)
             print("Finished training epoch {}".format(epoch))
         scheduler.step(epoch)
         if config.use_tpu:
             para_loader = pl.ParallelLoader(test_loader, [config.device])
             test_loop(para_loader.per_device_loader(config.device), writes)
         else:
-            test_loop(test_loader)
+            test_loop(test_loader, writes)
+        writes += 1
 
 
 if config.use_tpu:
