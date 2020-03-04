@@ -11,13 +11,13 @@ save_dir = 'models'  # Location for parameter checkpoints and samples
 dataset = datasets.MNIST
 normal_classes = [8]
 test_classes = [1, 3, 8]
-print_every = 10  # how many iterations between print statements
+print_every = 25  # how many iterations between print statements
 save_interval = 1  # Every how many epochs to write checkpoint/samples?
 load_params = None  # Restore training from previous model checkpoint?
 
 # data loader
-batch_size = 16  # Batch size during training per GPU
-test_batch_size = 2
+batch_size = 8  # Batch size during training per GPU
+test_batch_size = batch_size
 dataloader_num_workers = 4
 dataloader_pin_memory = True
 dataloader_shuffle = True

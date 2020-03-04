@@ -107,9 +107,9 @@ def train():
                 if not config.use_tpu:
                     writer.add_scalar('train/bpd', (train_loss / deno), writes + new_writes)
 
-                print('\t{:4d}/{:4d} - loss : {:.4f}, time : {:.3f}s'.format(
-                    batch_idx,
-                    len(train_loader),
+                print('\t{:3d}/{:3d} - loss : {:.4f}, time : {:.3f}s'.format(
+                    batch_idx // config.print_every,
+                    len(train_loader) // config.print_every,
                     (train_loss / deno),
                     (time.time() - time_)
                 ))
@@ -134,9 +134,10 @@ def train():
         deno = batch_idx * config.batch_size * np.prod(input_shape) * np.log(2.)
         writer.add_scalar('test/bpd', (test_loss / deno), writes)
         print('\t{}epoch {:4} validation loss : {:.4f}'.format(
-            None if not config.use_tpu else xm.get_ordinal(),
+            '' if not config.use_tpu else xm.get_ordinal(),
             epoch,
-            (test_loss / deno)),
+            (test_loss / deno)
+        ),
             flush=True
         )
 
@@ -161,9 +162,8 @@ def train():
         else:
             new_writes, train_loss = train_loop(train_loader, writes)
             writes += new_writes
-            print("\tFinished training epoch {} - training loss {}".format(
+            print("\tFinished training epoch {}".format(
                 epoch,
-                train_loss
             ))
         scheduler.step(epoch)
         if config.use_tpu:
