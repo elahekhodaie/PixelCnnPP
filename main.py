@@ -77,12 +77,8 @@ def train():
     print("initializing optimizer & scheduler")
     optimizer = Adam(model.parameters(), lr=config.lr)
     scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=config.lr_decay)
-    writes = 0
 
-    def train_loop(data_loader):
-        global time
-        global writes
-
+    def train_loop(data_loader, writes=0):
         if torch.cuda.is_available():
             torch.cuda.synchronize(device=config.device)
         train_loss = 0.
@@ -112,11 +108,10 @@ def train():
                                                                                  (train_loss / deno),
                                                                                  (time.time() - time_)))
                 train_loss = 0.
-                time = time.time()
+                time_ = time.time()
         del loss, output
 
-    def test_loop(data_loader):
-        global writes
+    def test_loop(data_loader, writes=None):
 
         if torch.cuda.is_available():
             torch.cuda.synchronize(device=config.device)
@@ -144,10 +139,11 @@ def train():
             utils.save_image(sample_t, 'images/{}_{}.png'.format(model_name, epoch),
                              nrow=5, padding=0)
 
+    writes = 0
     for epoch in range(config.max_epochs):
         if config.use_tpu:
             para_loader = pl.ParallelLoader(train_loader, [config.device])
-            train_loop(para_loader.per_device_loader(config.device))
+            train_loop(para_loader.per_device_loader(config.device), writes)
             xm.master_print("Finished training epoch {}".format(epoch))
         else:
             train_loop(train_loader)
@@ -155,14 +151,14 @@ def train():
         scheduler.step(epoch)
         if config.use_tpu:
             para_loader = pl.ParallelLoader(test_loader, [config.device])
-            test_loop(para_loader.per_device_loader(config.device))
+            test_loop(para_loader.per_device_loader(config.device), writes)
         else:
             test_loop(test_loader)
 
 
 if config.use_tpu:
     def train_on_tpu():
-        def trainer(rank,CONFIG):
+        def trainer(rank, CONFIG):
             global config
             config = CONFIG
             config.device = xm.xla_device()
@@ -172,7 +168,7 @@ if config.use_tpu:
         xmp.spawn(trainer, args=(config,), nprocs=config.num_cores,
                   start_method='fork')
 
-if config.run:
+if True:
     if config.use_tpu:
         train_on_tpu()
     else:
