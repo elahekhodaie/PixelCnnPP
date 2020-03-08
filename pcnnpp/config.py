@@ -3,7 +3,7 @@ from torchvision import datasets
 from pathlib import Path
 
 # run on import
-train = True
+train = False
 
 # data I/O
 output_root = ''
@@ -21,8 +21,8 @@ test_dataset = datasets.MNIST
 
 # log and save config
 print_every = 11  # how many iterations between print statements
-save_interval = 1  # Every how many epochs to write checkpoint/samples?
-plot_every = 64  # plot loss epochs interval
+save_interval = 64  # Every how many epochs to write checkpoint/samples?
+plot_every = 32  # plot loss epochs interval
 evaluate_every = 64  # evaluation interval
 load_params = None  # Restore training from previous model checkpoint (specify the model dump file path)
 

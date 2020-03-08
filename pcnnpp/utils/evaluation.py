@@ -156,6 +156,7 @@ def plot_evaluation(data: np.array, model_name=config.model_name, positive_is_an
     auc_score = roc_auc_score(y_true=data[:, 0].astype(int), y_score=data[:, 3])
 
     fig, axs = plt.subplots(2, 1, figsize=(9, 9.5))
+    # roc
     fig.suptitle(f'{model_name} Evaluation (positive={"Anomaly" if positive_is_anomaly else "Normal"})',
                  fontsize=title_font_size)
     axs[0].plot(fpr, tpr, color='darkorange',
@@ -169,6 +170,7 @@ def plot_evaluation(data: np.array, model_name=config.model_name, positive_is_an
     axs[0].legend(loc="lower right")
     axs[0].set_aspect('equal')
 
+    # precision
     axs[1].plot(thr, tpr / (tpr + fpr), lw=line_width, color='darkorange')
     axs[1].plot([thr.min(), thr.max()], [0.5, 0.5], lw=line_width / 2, color='navy', linestyle='--')
     axs[1].set_xlim(thr.min(), thr.max())
@@ -184,6 +186,7 @@ def plot_evaluation(data: np.array, model_name=config.model_name, positive_is_an
 
 
 def plot_loss(training_loss, validation_loss, model_name=config.model_name, save_path=None):
+    # loss tracking
     if len(training_loss) != len(validation_loss):
         return
     plt.plot(range(config.start_epoch, config.start_epoch + len(validation_loss)), validation_loss, label='Validation')

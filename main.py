@@ -193,6 +193,7 @@ def train():
                 validation_loss = validation_loop(validation_loader, writes)
                 validation_losses.append(validation_loss)
 
+                # evaluation and loss tracking
                 if (epoch + 1) % config.plot_every == 0:
                     plot_loss(train_losses, validation_losses,
                               model_name="DCNNpp" if config.noising_factor is not None else "PCNNpp",
