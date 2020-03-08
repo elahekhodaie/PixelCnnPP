@@ -176,7 +176,7 @@ def train():
         else:
             validation_loss = validation_loop(validation_loader, writes)
             validation_losses.append(validation_loss)
-            if (epoch + 1) % config.plot_every:
+            if (epoch + 1) % config.plot_every == 0:
                 plot_loss(train_losses, validation_losses)
         writes += 1
     return train_losses, validation_losses

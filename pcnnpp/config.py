@@ -6,7 +6,7 @@ from pathlib import Path
 train = False
 
 # data I/O
-output_root = 'content/drive/My Drive/output/'
+output_root = 'content/drive/My Drive/lab/denoising/'
 use_arg_parser = False  # whether or not to use arg_parser
 data_dir = output_root + 'data'  # Location for the dataset
 models_dir = output_root + 'models'  # Location for parameter checkpoints and samples
@@ -20,15 +20,15 @@ test_classes = list(range(0, 10))
 test_dataset = datasets.MNIST
 
 # log and save config
-print_every = 50  # how many iterations between print statements
-save_interval = 128  # Every how many epochs to write checkpoint/samples?
+print_every = 11  # how many iterations between print statements
+save_interval = 1  # Every how many epochs to write checkpoint/samples?
 plot_every = 64  # plot loss epochs interval
 load_params = None  # Restore training from previous model checkpoint (specify the model dump file path)
 
 start_epoch = 0
 
 # data loader
-batch_size = 512  # Batch size during training per GPU
+batch_size = 256  # Batch size during training per GPU
 test_batch_size = batch_size
 dataloader_num_workers = 4
 dataloader_pin_memory = True
