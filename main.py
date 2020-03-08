@@ -32,7 +32,7 @@ np.random.seed(config.seed)
 model_name = 'pcnnpp{:.5f}_{}_{}_{}'.format(config.lr, config.nr_resnet, config.nr_filters, config.nr_logistic_mix)
 model = None
 dataset_train = None
-dataset_test = None
+dataset_validation = None
 
 
 def train():
@@ -64,10 +64,9 @@ def train():
         )
         print('tpu samplers created')
     train_loader = dataset_train.get_dataloader(sampler=train_sampler, shuffle=not config.use_tpu)
-    validation_loader = dataset_validation.get_dataloader(sampler=validation_sampler, shuffle=not config.use_tpu,
-                                                          batch_size=config.test_batch_size)
+    validation_loader = dataset_validation.get_dataloader(sampler=validation_sampler, shuffle=not config.use_tpu, )
 
-    input_shape = dataset_test.input_shape()
+    input_shape = dataset_validation.input_shape()
     loss_function = get_loss_function(input_shape)
 
     # setting up tensorboard data summerizer
@@ -91,6 +90,7 @@ def train():
             tracker = xm.RateTracker()
         model.train()
         for batch_idx, (input, _) in enumerate(data_loader):
+            input = input + config.noising_factor * config.noise_function(*input.shape)
             input = input.to(config.device, non_blocking=True)
             output = model(input)
             loss = loss_function(input, output)

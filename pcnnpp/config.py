@@ -7,7 +7,6 @@ train = False
 
 # data I/O
 output_root = 'content/drive/My Drive/output/'
-output_root = ''
 use_arg_parser = False  # whether or not to use arg_parser
 data_dir = output_root + 'data'  # Location for the dataset
 models_dir = output_root + 'models'  # Location for parameter checkpoints and samples
@@ -22,15 +21,14 @@ test_dataset = datasets.MNIST
 
 # log and save config
 print_every = 50  # how many iterations between print statements
-save_interval = 5  # Every how many epochs to write checkpoint/samples?
-plot_every = 50  # plot loss epochs interval
-load_params = 'None'  # Restore training from previous model checkpoint (specify the model dump file path)
-load_params = 'models/pcnnpp0.00020_4_20_3_511.pth'  # Restore training from previous model checkpoint (specify the model dump file path)
+save_interval = 128  # Every how many epochs to write checkpoint/samples?
+plot_every = 64  # plot loss epochs interval
+load_params = None  # Restore training from previous model checkpoint (specify the model dump file path)
 
 start_epoch = 0
 
 # data loader
-batch_size = 16  # Batch size during training per GPU
+batch_size = 512  # Batch size during training per GPU
 test_batch_size = batch_size
 dataloader_num_workers = 4
 dataloader_pin_memory = True
@@ -51,7 +49,7 @@ lr = 0.0002  # Base learning rate
 lr_decay = 0.999995  # Learning rate decay, applied every step of the optimization
 noising_factor = 0.2  # the noise to add to each input while training the model
 noise_function = torch.rand  # the noise to use while training in a denoisin
-max_epochs = 30  # How many epochs to run in total
+max_epochs = 4096  # How many epochs to run in total
 
 # samples
 sample_batch_size = 25
