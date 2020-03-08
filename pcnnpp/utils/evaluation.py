@@ -1,8 +1,11 @@
 import torch
 import pcnnpp.config as config
 from pcnnpp.data import DatasetSelection
-from pcnnpp.utils.functions import log_prob_from_logits
+from pcnnpp.utils.functions import get_loss_function, get_hitmap_function
 import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.metrics import roc_curve, roc_auc_score
+import time
 
 
 def to_one_hot(tensor, n, fill_with=1.):
@@ -107,28 +110,88 @@ def sample(model, input_shape):
     return data
 
 
-def evaluate_roc(model):
-    print('loading test data')
-    dataset_test = DatasetSelection(dataset=config.test_dataset, train=False, classes=config.normal_classes)
-    test_dataloader = dataset_test.get_dataloader(batch_size=config.test_batch_size, shuffle=not config.use_tpu)
-    model = model.to(config.device)
-    all_outputs = torch.empty((1,))
-    all_labels = torch.empty((1,))
-    with torch.no_grad():
-        for inputs, labels in test_dataloader:
-            output = model(inputs)
-            log_prob_from_logits(output)
-            outputs = torch.cat((outputs, log_prob_from_logits(output)), dim=0)
-            all_labels = torch.cat((all_labels, labels), dim=0)
-        outputs.sum(dim=4)
+def evaluate(model, dataset_test=None, test_dataloader=None, batch_size=config.test_batch_size,
+             positive_is_anomaly=True):
+    if dataset_test is None:
+        print('loading test data')
+        dataset_test = DatasetSelection(dataset=config.test_dataset, train=False, classes=config.test_classes)
+    if test_dataloader is None:
+        print('initializing test data loader')
+        test_dataloader = dataset_test.get_dataloader(batch_size=batch_size, shuffle=False)
+    input_shape = dataset_test.input_shape()
+    hitmap_function = get_hitmap_function(input_shape)
 
-def plot_loss(training_loss, validation_loss):
+    with torch.no_grad():
+        data = None
+        print(f'processing {len(test_dataloader)} test batches:')
+        time_ = time.time()
+        for idx, (inputs, labels) in enumerate(test_dataloader):
+            images = inputs.numpy()
+            inputs.to(config.device)
+            output = model(inputs)
+            hitmap = hitmap_function(inputs, output).numpy()
+            log_prob = hitmap.sum(1).sum(1)
+            is_anomaly = (np.isin(labels.numpy(), config.normal_classes) == (not positive_is_anomaly))
+            results = np.array(
+                [(is_anomaly[i], images[i].reshape(input_shape[1], input_shape[2]), hitmap[i], log_prob[i]) for i in
+                 range(len(images))])
+            data = results if data is None else np.append(data, results, axis=0)
+            print(
+                '\t{:3d}/{:3d} - time : {:.3f}s'.format(
+                    idx + 1,
+                    len(test_dataloader),
+                    time.time() - time_)
+            )
+            time_ = time.time()
+    return data
+
+
+def plot_evaluation(data: np.array, model_name=config.model_name, positive_is_anomaly=True, save_path=None):
+    # constant values
+    line_width = 2
+    title_font_size = 14
+
+    # calculating roc curve
+    fpr, tpr, thr = roc_curve(y_true=data[:, 0].astype(int), y_score=data[:, 3], pos_label=1)
+    auc_score = roc_auc_score(y_true=data[:, 0].astype(int), y_score=data[:, 3])
+
+    fig, axs = plt.subplots(2, 1, figsize=(9, 9.5))
+    fig.suptitle(f'{model_name} Evaluation (positive={"Anomaly" if positive_is_anomaly else "Normal"})',
+                 fontsize=title_font_size)
+    axs[0].plot(fpr, tpr, color='darkorange',
+                lw=line_width, label='ROC curve (area = %0.3f)' % auc_score)
+    axs[0].plot([0, 1], [0, 1], color='navy', lw=line_width / 2, linestyle='--')
+    axs[0].set_xlim([0.0, 1.0])
+    axs[0].set_ylim([0.0, 1.01])
+    axs[0].set_xlabel('False Positive Rate')
+    axs[0].set_ylabel('True Positive Rate')
+    axs[0].set_title(f'ROC - {model_name}')
+    axs[0].legend(loc="lower right")
+    axs[0].set_aspect('equal')
+
+    axs[1].plot(thr, tpr / (tpr + fpr), lw=line_width, color='darkorange')
+    axs[1].plot([thr.min(), thr.max()], [0.5, 0.5], lw=line_width / 2, color='navy', linestyle='--')
+    axs[1].set_xlim(thr.min(), thr.max())
+    axs[1].set_ylim([0.0, 1.01])
+    axs[1].set_xlabel('Threshold on Log(Likelihood)')
+    axs[1].set_ylabel('Precision')
+    axs[1].set_title('Precision')
+    axs[1].legend(loc="lower right")
+    axs[1].set_aspect('auto')
+    if save_path is not None:
+        fig.savefig(save_path)
+    fig.show()
+
+
+def plot_loss(training_loss, validation_loss, model_name=config.model_name, save_path=None):
     if len(training_loss) != len(validation_loss):
         return
     plt.plot(range(config.start_epoch, config.start_epoch + len(validation_loss)), validation_loss, label='Validation')
     plt.plot(range(config.start_epoch, config.start_epoch + len(validation_loss)), training_loss, label='Training')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
-    plt.title(f'Epoch Losses {config.start_epoch + len(validation_loss) - 1}')
+    plt.title(f'{model_name} Epoch Losses {config.start_epoch + len(validation_loss) - 1}')
     plt.legend()
+    if save_path is not None:
+        plt.savefig(save_path)
     plt.show()

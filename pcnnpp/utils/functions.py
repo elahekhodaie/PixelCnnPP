@@ -31,7 +31,7 @@ def log_prob_from_logits(x):
     return x - m - torch.log(torch.sum(torch.exp(x - m), dim=axis, keepdim=True))
 
 
-def discretized_mix_logistic_loss(x, l):
+def log_prob_hitmap(x, l):
     """ log-likelihood for mixture of discretized logistics, assumes the data has been rescaled to [-1,1] interval """
     # Pytorch ordering
     x = x.permute(0, 2, 3, 1)
@@ -97,10 +97,14 @@ def discretized_mix_logistic_loss(x, l):
     log_probs = cond * log_cdf_plus + (1. - cond) * inner_out
     log_probs = torch.sum(log_probs, dim=3) + log_prob_from_logits(logit_probs)
 
-    return -torch.sum(log_sum_exp(log_probs))
+    return log_sum_exp(log_probs)
 
 
-def discretized_mix_logistic_loss_1d(x, l):
+def discretized_mix_logistic_loss(x, l):
+    return -torch.sum(log_prob_hitmap(x, l))
+
+
+def log_prob_hitmap_1d(x, l):
     """ log-likelihood for mixture of discretized logistics, assumes the data has been rescaled to [-1,1] interval """
     # Pytorch ordering
     x = x.permute(0, 2, 3, 1)
@@ -144,7 +148,11 @@ def discretized_mix_logistic_loss_1d(x, l):
     log_probs = cond * log_cdf_plus + (1. - cond) * inner_out
     log_probs = torch.sum(log_probs, dim=3) + log_prob_from_logits(logit_probs)
 
-    return -torch.sum(log_sum_exp(log_probs))
+    return log_sum_exp(log_probs)
+
+
+def discretized_mix_logistic_loss_1d(x, l):
+    return -torch.sum(log_prob_hitmap_1d(x, l))
 
 
 ''' utilities for shifting the image around, efficient alternative to masking convolutions '''
@@ -170,21 +178,13 @@ def right_shift(x, pad=None):
     return pad(x)
 
 
-def load_model(model, path):
-    params = torch.load(path, map_location=config.device)
-    added = 0
-    for name, param in params.items():
-        if name in model.state_dict().keys():
-            try:
-                model.state_dict()[name].copy_(param)
-                added += 1
-            except Exception as e:
-                print(e)
-                pass
-    print('added {:.2f}% of params:'.format (100* added / float(len(model.state_dict().keys()))))
-
-
 def get_loss_function(input_shape):
     if input_shape[2] == 3:
         return discretized_mix_logistic_loss
     return discretized_mix_logistic_loss_1d
+
+
+def get_hitmap_function(input_shape):
+    if input_shape[2] == 3:
+        return log_prob_hitmap
+    return log_prob_hitmap_1d

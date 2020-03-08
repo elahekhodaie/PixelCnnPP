@@ -145,6 +145,20 @@ class PixelCNN(nn.Module):
         return x_out
 
 
+def load_model(model, path):
+    params = torch.load(path, map_location=config.device)
+    added = 0
+    for name, param in params.items():
+        if name in model.state_dict().keys():
+            try:
+                model.state_dict()[name].copy_(param)
+                added += 1
+            except Exception as e:
+                print(e)
+                pass
+    print('added {:.2f}% of params:'.format(100 * added / float(len(model.state_dict().keys()))))
+
+
 def init_model(input_shape):
     print('initializing model')
     model = PixelCNN(nr_resnet=config.nr_resnet, nr_filters=config.nr_filters,
