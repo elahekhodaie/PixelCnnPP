@@ -5,10 +5,11 @@ import numpy as np
 from torch.optim import lr_scheduler, Adam
 from torchvision import utils
 from tensorboardX import SummaryWriter
-from pcnnpp.model import PixelCNN, load_part_of_model
+from pcnnpp.model import init_model, PixelCNN
 from pcnnpp import config
 from pcnnpp.data import DatasetSelection, rescaling_inv
-from pcnnpp.utils.functions import sample, get_loss_function
+from pcnnpp.utils.functions import get_loss_function
+from pcnnpp.utils.evaluation import sample, plot_loss
 
 if config.use_tpu:
     import torch_xla
@@ -42,11 +43,11 @@ def train():
     # starting up data loaders
     print("loading training data")
     dataset_train = DatasetSelection(train=True, classes=config.normal_classes)
-    print('loading validation/test data')
-    dataset_test = DatasetSelection(train=False, classes=config.normal_classes)
+    print('loading validation data')
+    dataset_validation = DatasetSelection(train=False, classes=config.normal_classes)
 
     train_sampler = None
-    test_sampler = None
+    validation_sampler = None
     if config.use_tpu:
         print('creating tpu sampler')
         train_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -55,16 +56,16 @@ def train():
             rank=xm.get_ordinal(),
             shuffle=True
         )
-        test_sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset_train,
+        validation_sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset_validation,
             num_replicas=xm.xrt_world_size(),
             rank=xm.get_ordinal(),
             shuffle=True
         )
         print('tpu samplers created')
     train_loader = dataset_train.get_dataloader(sampler=train_sampler, shuffle=not config.use_tpu)
-    test_loader = dataset_test.get_dataloader(sampler=test_sampler, shuffle=not config.use_tpu,
-                                              batch_size=config.test_batch_size)
+    validation_loader = dataset_validation.get_dataloader(sampler=validation_sampler, shuffle=not config.use_tpu,
+                                                          batch_size=config.test_batch_size)
 
     input_shape = dataset_test.input_shape()
     loss_function = get_loss_function(input_shape)
@@ -73,15 +74,7 @@ def train():
     writer = SummaryWriter(log_dir=os.path.join(config.log_dir, model_name))
 
     # initializing model
-    print("initializing model")
-    model = PixelCNN(nr_resnet=config.nr_resnet, nr_filters=config.nr_filters,
-                     input_channels=input_shape[0], nr_logistic_mix=config.nr_logistic_mix)
-    model = model.to(config.device)
-
-    if config.load_params:
-        load_part_of_model(model, config.load_params)
-        # model.load_state_dict(torch.load(config.load_params))
-        print('model parameters loaded')
+    model = init_model(input_shape)
 
     print("initializing optimizer & scheduler")
     optimizer = Adam(model.parameters(), lr=config.lr)
@@ -128,7 +121,7 @@ def train():
 
         return new_writes, (last_train_loss / deno)
 
-    def test_loop(data_loader, writes=0):
+    def validation_loop(data_loader, writes=0):
         if torch.cuda.is_available():
             torch.cuda.synchronize(device=config.device)
         model.eval()
@@ -142,7 +135,7 @@ def train():
                 del loss, output
 
             deno = batch_idx * config.batch_size * np.prod(input_shape) * np.log(2.)
-            writer.add_scalar('test/bpd', (test_loss / deno), writes)
+            writer.add_scalar('validation/bpd', (test_loss / deno), writes)
             print('\t{}epoch {:4} validation loss : {:.4f}'.format(
                 '' if not config.use_tpu else xm.get_ordinal(),
                 epoch,
@@ -178,11 +171,13 @@ def train():
             ))
         scheduler.step(epoch)
         if config.use_tpu:
-            para_loader = pl.ParallelLoader(test_loader, [config.device])
-            test_loop(para_loader.per_device_loader(config.device), writes)
+            para_loader = pl.ParallelLoader(validation_loader, [config.device])
+            validation_loop(para_loader.per_device_loader(config.device), writes)
         else:
-            validation_loss = test_loop(test_loader, writes)
+            validation_loss = validation_loop(validation_loader, writes)
             validation_losses.append(validation_loss)
+            if (epoch + 1) % config.plot_every:
+                plot_loss(train_losses, validation_losses)
         writes += 1
     return train_losses, validation_losses
 
@@ -199,7 +194,7 @@ if config.use_tpu:
         xmp.spawn(trainer, args=(config,), nprocs=config.num_cores,
                   start_method='fork')
 
-if config.run:
+if config.train:
     if config.use_tpu:
         train_on_tpu()
     else:

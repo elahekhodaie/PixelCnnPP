@@ -2,7 +2,6 @@ import pdb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 from pcnnpp import config
 from torch.nn.utils import weight_norm as wn
 import numpy as np
@@ -148,89 +147,6 @@ def discretized_mix_logistic_loss_1d(x, l):
     return -torch.sum(log_sum_exp(log_probs))
 
 
-def to_one_hot(tensor, n, fill_with=1.):
-    # we perform one hot encore with respect to the last axis
-    one_hot = torch.FloatTensor(tensor.size() + (n,)).zero_()
-    one_hot = one_hot.to(config.device)
-    one_hot.scatter_(len(tensor.size()), tensor.unsqueeze(-1), fill_with)
-    return one_hot
-
-
-def sample_from_discretized_mix_logistic_1d(l, nr_mix=config.nr_logistic_mix):
-    # Pytorch ordering
-    l = l.permute(0, 2, 3, 1)
-
-    ls = [int(y) for y in l.size()]
-    xs = ls[:-1] + [1]  # [3]
-
-    # unpack parameters
-    logit_probs = l[:, :, :, :nr_mix]
-    l = l[:, :, :, nr_mix:].contiguous().view(xs + [nr_mix * 2])  # for mean, scale
-    l = l.to(config.device)
-    logit_probs = logit_probs.to(config.device)
-    # sample mixture indicator from softmax
-    temp = torch.FloatTensor(logit_probs.size())
-    temp = temp.to(config.device)
-    temp.uniform_(1e-5, 1. - 1e-5)
-    temp = logit_probs.data - torch.log(- torch.log(temp))
-    _, argmax = temp.max(dim=3)
-
-    one_hot = to_one_hot(argmax, nr_mix)
-    sel = one_hot.view(xs[:-1] + [1, nr_mix])
-    # select logistic parameters
-    means = torch.sum(l[:, :, :, :, :nr_mix] * sel, dim=4)
-    log_scales = torch.clamp(torch.sum(
-        l[:, :, :, :, nr_mix:2 * nr_mix] * sel, dim=4), min=-7.)
-    u = torch.FloatTensor(means.size())
-    u.uniform_(1e-5, 1. - 1e-5)
-    u = u.to(config.device)
-    x = means + torch.exp(log_scales) * (torch.log(u) - torch.log(1. - u))
-    x0 = torch.clamp(torch.clamp(x[:, :, :, 0], min=-1.), max=1.)
-    out = x0.unsqueeze(1)
-    return out
-
-
-def sample_from_discretized_mix_logistic(l, nr_mix=config.nr_logistic_mix):
-    # Pytorch ordering
-    l = l.permute(0, 2, 3, 1)
-    ls = [int(y) for y in l.size()]
-    xs = ls[:-1] + [3]
-
-    # unpack parameters
-    logit_probs = l[:, :, :, :nr_mix]
-    l = l[:, :, :, nr_mix:].contiguous().view(xs + [nr_mix * 3])
-    # sample mixture indicator from softmax
-    temp = torch.FloatTensor(logit_probs.size())
-    temp.uniform_(1e-5, 1. - 1e-5)
-    temp = logit_probs.data - torch.log(- torch.log(temp))
-    _, argmax = temp.max(dim=3)
-
-    one_hot = to_one_hot(argmax, nr_mix)
-    sel = one_hot.view(xs[:-1] + [1, nr_mix])
-    # select logistic parameters
-    means = torch.sum(l[:, :, :, :, :nr_mix] * sel, dim=4)
-    log_scales = torch.clamp(torch.sum(
-        l[:, :, :, :, nr_mix:2 * nr_mix] * sel, dim=4), min=-7.)
-    coeffs = torch.sum(F.tanh(
-        l[:, :, :, :, 2 * nr_mix:3 * nr_mix]) * sel, dim=4)
-    # sample from logistic & clip to interval
-    # we don't actually round to the nearest 8bit value when sampling
-    u = torch.FloatTensor(means.size())
-    u.uniform_(1e-5, 1. - 1e-5)
-    u = Variable(u)
-    x = means + torch.exp(log_scales) * (torch.log(u) - torch.log(1. - u))
-    x0 = torch.clamp(torch.clamp(x[:, :, :, 0], min=-1.), max=1.)
-    x1 = torch.clamp(torch.clamp(
-        x[:, :, :, 1] + coeffs[:, :, :, 0] * x0, min=-1.), max=1.)
-    x2 = torch.clamp(torch.clamp(
-        x[:, :, :, 2] + coeffs[:, :, :, 1] * x0 + coeffs[:, :, :, 2] * x1, min=-1.), max=1.)
-
-    out = torch.cat([x0.view(xs[:-1] + [1]), x1.view(xs[:-1] + [1]), x2.view(xs[:-1] + [1])], dim=3)
-    # put back in Pytorch ordering
-    out = out.permute(0, 3, 1, 2)
-    return out
-
-
 ''' utilities for shifting the image around, efficient alternative to masking convolutions '''
 
 
@@ -254,8 +170,8 @@ def right_shift(x, pad=None):
     return pad(x)
 
 
-def load_part_of_model(model, path):
-    params = torch.load(path)
+def load_model(model, path):
+    params = torch.load(path, map_location=config.device)
     added = 0
     for name, param in params.items():
         if name in model.state_dict().keys():
@@ -265,28 +181,10 @@ def load_part_of_model(model, path):
             except Exception as e:
                 print(e)
                 pass
-    print('added %s of params:' % (added / float(len(model.state_dict().keys()))))
+    print('added {:.2f}% of params:'.format (100* added / float(len(model.state_dict().keys()))))
 
 
 def get_loss_function(input_shape):
     if input_shape[2] == 3:
         return discretized_mix_logistic_loss
     return discretized_mix_logistic_loss_1d
-
-
-def get_sampler_function(input_shape):
-    if input_shape[2] == 3:
-        return sample_from_discretized_mix_logistic
-    return sample_from_discretized_mix_logistic_1d
-
-
-def sample(model, input_shape):
-    model.train(False)
-    data = torch.zeros(config.sample_batch_size, input_shape[0], input_shape[1], input_shape[2],device=config.device)
-    for i in range(input_shape[1]):
-        for j in range(input_shape[2]):
-            data_v = data
-            out = model(data_v, sample=True).to(config.device)
-            out_sample = get_sampler_function(input_shape)(out)
-            data[:, :, i, j] = out_sample.data[:, :, i, j]
-    return data

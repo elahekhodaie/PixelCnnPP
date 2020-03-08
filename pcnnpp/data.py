@@ -10,7 +10,7 @@ default_transform = transforms.Compose([transforms.ToTensor(), rescaling])
 
 class DatasetSelection(Dataset):
     def __init__(self,
-                 dataset=config.dataset,
+                 dataset=config.train_dataset,
                  root=config.data_dir,
                  train=True,
                  classes=tuple(range(0, 9)),

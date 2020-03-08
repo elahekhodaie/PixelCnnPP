@@ -1,7 +1,4 @@
 import pdb
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from pcnnpp.layers import *
 from pcnnpp.utils.functions import *
 
@@ -146,3 +143,16 @@ class PixelCNN(nn.Module):
         assert len(u_list) == len(ul_list) == 0, pdb.set_trace()
 
         return x_out
+
+
+def init_model(input_shape):
+    print('initializing model')
+    model = PixelCNN(nr_resnet=config.nr_resnet, nr_filters=config.nr_filters,
+                     input_channels=input_shape[0], nr_logistic_mix=config.nr_logistic_mix)
+    model = model.to(config.device)
+
+    if config.load_params:
+        load_model(model, config.load_params)
+        # model.load_state_dict(torch.load(config.load_params))
+        print('model parameters loaded')
+    return model
