@@ -174,7 +174,9 @@ def plot_evaluation(data: np.array, model_name=config.model_name, positive_is_an
     axs[0].set_aspect('equal')
 
     # precision
-    axs[1].plot(thr, tpr / (tpr + fpr), lw=line_width, color='darkorange')
+    tp = tpr * np.count_nonzero(data[:, 0])
+    fp = fpr * np.count_nonzero(data[:, 0] == False)
+    axs[1].plot(thr, tp / (tp + fp), lw=line_width, color='darkorange')
     axs[1].plot([thr.min(), thr.max()], [0.5, 0.5], lw=line_width / 2, color='navy', linestyle='--')
     axs[1].set_xlim(thr.min(), thr.max())
     axs[1].set_ylim([0.0, 1.01])
@@ -184,7 +186,7 @@ def plot_evaluation(data: np.array, model_name=config.model_name, positive_is_an
     axs[1].set_aspect('auto')
     if save_path is not None:
         fig.savefig(save_path)
-    plt.show()
+    fig.show()
     plt.clf()
     plt.cla()
 
