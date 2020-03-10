@@ -113,7 +113,7 @@ def sample(model, input_shape):
 
 
 def evaluate(model, dataset_test=None, test_dataloader=None, batch_size=config.test_batch_size,
-             positive_is_anomaly=True):
+             positive_is_anomaly=config.positive_is_anomaly):
     if dataset_test is None:
         print('loading test data')
         dataset_test = DatasetSelection(dataset=config.test_dataset, train=False, classes=config.test_classes)
@@ -132,10 +132,13 @@ def evaluate(model, dataset_test=None, test_dataloader=None, batch_size=config.t
             inputs = inputs.to(config.device)
             output = model(inputs)
             hitmap = hitmap_function(inputs, output).cpu().numpy()
-            log_prob = hitmap.sum(1).sum(1)
-            is_anomaly = (np.isin(labels.numpy(), config.normal_classes) == (not positive_is_anomaly))
+            log_prob_normality = hitmap.sum(1).sum(1)
+
+            score = log_prob_normality
+            label = (np.isin(labels.numpy(), config.normal_classes) == (not positive_is_anomaly))
+
             results = np.array(
-                [(is_anomaly[i], images[i].reshape(input_shape[1], input_shape[2]), hitmap[i], log_prob[i]) for i in
+                [(label[i], images[i].reshape(input_shape[1], input_shape[2]), hitmap[i], score[i]) for i in
                  range(len(images))])
             data = results if data is None else np.append(data, results, axis=0)
             if (idx + 1) % config.evaluate_print_every == 0 and config.evaluate_print_every:
@@ -149,7 +152,8 @@ def evaluate(model, dataset_test=None, test_dataloader=None, batch_size=config.t
     return data
 
 
-def plot_evaluation(data: np.array, model_name=config.model_name, positive_is_anomaly=True, save_path=None):
+def plot_evaluation(data: np.array, model_name=config.model_name, positive_is_anomaly=config.positive_is_anomaly,
+                    save_path=None):
     # constant values
     line_width = 2
     title_font_size = 14
@@ -187,8 +191,6 @@ def plot_evaluation(data: np.array, model_name=config.model_name, positive_is_an
     if save_path is not None:
         fig.savefig(save_path)
     fig.show()
-    plt.clf()
-    plt.cla()
 
 
 def plot_loss(training_loss, validation_loss, model_name=config.model_name, save_path=None):
@@ -202,7 +204,72 @@ def plot_loss(training_loss, validation_loss, model_name=config.model_name, save
     plt.xlim(config.start_epoch - 1, config.start_epoch + len(validation_loss) + 1)
     plt.title(f'{model_name} Epoch Losses {config.start_epoch + len(validation_loss) - 1}')
     plt.legend()
+    plt.tight_layout()
     if save_path is not None:
         plt.savefig(save_path)
     plt.show()
     plt.clf()
+
+
+def _plot_extreme_cases(data, sorted_args, count_of_cases, model_name, is_positive, save_dir,
+                        positive_is_anomaly=config.positive_is_anomaly):
+    # local variabels
+    rows = count_of_cases // 2
+    title_font_size = 14
+    fig, axarr = plt.subplots(rows + 1, 8, figsize=(rows * 3 + 1, rows * 5))
+    fig.suptitle(
+        f'{model_name} Extreme cases of {"Positive" if is_positive else "Negative"} class (positive={"Anomaly" if positive_is_anomaly else "Normal"})',
+        fontsize=title_font_size)
+    gs = axarr[rows, 0].get_gridspec()
+    for ax in axarr[rows, :]:
+        ax.remove()
+    scores_distribution = fig.add_subplot(gs[rows, :])
+    scores_distribution.set_title("Log(Likelihood)s' Distribution")
+    scores_distribution.set_aspect('auto')
+    n, bins, patches = scores_distribution.hist(
+        x=data[:, 3],
+        bins='auto',
+        color='#0504aa',
+        alpha=0.7,
+        rwidth=0.85,
+        label=r'$\mu={:.3f}, \sigma={:.3f}$'.format(
+            np.nanmean(data[:, 3]),
+            np.nanstd(data[:, 3])
+        )
+    )
+    scores_distribution.legend()
+    scores_distribution.grid(axis='y', alpha=0.75)
+    scores_distribution.set_xlabel('Value')
+    scores_distribution.set_ylabel('Frequency')
+    maxfreq = n.max()
+    scores_distribution.set_ylim(ymax=np.ceil(maxfreq / 10) * 10 if maxfreq % 10 else maxfreq + 10)
+    for is_lowest_score in [1, 0]:
+        for idx, item in enumerate(data):
+            c = sorted_args[idx] if is_lowest_score else len(data) - sorted_args[idx] - 1
+            if c < rows * 2:
+                axarr[c % rows, (c // rows) * 2 + (4 * is_lowest_score)].imshow(item[1], cmap='gray')
+                axarr[c % rows, (c // rows) * 2 + (4 * is_lowest_score)].title.set_text(
+                    f'Input {"lowest" if is_lowest_score else "highest"} #{c} (l={item[0]})')
+                axarr[c % rows, (c // rows) * 2 + (4 * is_lowest_score)].set_aspect(1)
+                axarr[c % rows, (c // rows) * 2 + 1 + (4 * is_lowest_score)].imshow(item[2], cmap='gray')
+                axarr[c % rows, (c // rows) * 2 + 1 + (4 * is_lowest_score)].title.set_text(f'hitmap {item[3]:0.3f}')
+                axarr[c % rows, (c // rows) * 2 + 1 + (4 * is_lowest_score)].set_aspect(1)
+
+    if save_dir is not None:
+        fig.savefig(
+            f'{save_dir}/Extreme{rows * 2}-{"Positive" if is_positive else "Negative"}-{model_name}.png')
+    fig.show()
+
+
+def show_extreme_cases(evalutation_data, count_of_cases=config.extreme_cases_count, model_name=config.model_name,
+                       save_dir=None, positive_is_anomaly=config.positive_is_anomaly):
+    positive_data = evalutation_data[evalutation_data[:, 0] == True]
+    negative_data = evalutation_data[evalutation_data[:, 0] == False]
+
+    sorted_positive_args = np.argsort(np.argsort(positive_data[:, 3]))
+    sorted_negative_args = np.argsort(np.argsort(negative_data[:, 3]))
+
+    _plot_extreme_cases(positive_data, sorted_positive_args, count_of_cases, model_name, True, save_dir,
+                        positive_is_anomaly)
+    _plot_extreme_cases(negative_data, sorted_negative_args, count_of_cases, model_name, False, save_dir,
+                        positive_is_anomaly)

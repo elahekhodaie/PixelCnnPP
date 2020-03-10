@@ -10,8 +10,11 @@ output_root = ''
 use_arg_parser = False  # whether or not to use arg_parser
 data_dir = output_root + 'data'  # Location for the dataset
 models_dir = output_root + 'models'  # Location for parameter checkpoints and samples
-samples_dir = output_root + 'samples'
 log_dir = output_root + 'log'
+samples_dir = log_dir + '/samples'
+losses_dir = log_dir + '/losses_dir'
+evaluation_dir = log_dir + '/evaluation'
+extreme_cases_dir = log_dir + '/extreme_cases'
 
 train_dataset = datasets.MNIST
 normal_classes = [8]
@@ -21,7 +24,7 @@ test_dataset = datasets.MNIST
 
 # log and save config
 print_every = 11  # how many iterations between print statements
-evaluate_print_every = 20 # how many iterations between print statements in evalutation
+evaluate_print_every = 20  # how many iterations between print statements in evalutation
 save_interval = 64  # Every how many epochs to write checkpoint/samples?
 plot_every = 32  # plot loss epochs interval
 evaluate_every = 64  # evaluation interval
@@ -58,6 +61,10 @@ model_name = '{}lr{:.5f}resnet{}filter{}nrmix{}'.format(
     f'd{noising_factor}pcnnpp' if noising_factor is not None else 'pcnnpp', lr, nr_resnet, nr_filters,
     nr_logistic_mix)
 
+# evaluation
+positive_is_anomaly = False
+extreme_cases_count = 16
+
 # samples
 sample_batch_size = 25
 
@@ -70,3 +77,6 @@ Path(data_dir).mkdir(parents=True, exist_ok=True)
 Path(models_dir).mkdir(parents=True, exist_ok=True)
 Path(samples_dir).mkdir(parents=True, exist_ok=True)
 Path(log_dir).mkdir(parents=True, exist_ok=True)
+Path(evaluation_dir).mkdir(parents=True, exist_ok=True)
+Path(losses_dir).mkdir(parents=True, exist_ok=True)
+Path(extreme_cases_dir).mkdir(parents=True, exist_ok=True)

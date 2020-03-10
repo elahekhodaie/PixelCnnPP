@@ -9,7 +9,7 @@ from pcnnpp.model import init_model, PixelCNN
 from pcnnpp import config
 from pcnnpp.data import DatasetSelection, rescaling_inv
 from pcnnpp.utils.functions import get_loss_function
-from pcnnpp.utils.evaluation import sample, plot_loss, evaluate, plot_evaluation
+from pcnnpp.utils.evaluation import sample, plot_loss, evaluate, plot_evaluation, show_extreme_cases
 
 if config.use_tpu:
     import torch_xla
@@ -191,18 +191,27 @@ def train():
             else:
                 validation_loss = validation_loop(validation_loader, writes)
                 validation_losses.append(validation_loss)
-
+                model_name = f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}'
                 # evaluation and loss tracking
                 if (epoch + 1) % config.plot_every == 0:
-                    plot_loss(train_losses, validation_losses,
-                              model_name="DCNNpp" if config.noising_factor is not None else "PCNNpp",
-                              save_path=config.log_dir + f'/Losses{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}.png')
+                    plot_loss(
+                        train_losses,
+                        validation_losses,
+                        model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-{scheduler.get_lr():.6f}'
+                        , save_path=config.losses_dir + f'/Losses{model_name}.png',
+                    )
 
                 if (epoch + 1) % config.evaluate_every == 0:
+                    eval_data = evaluate(model, dataset_test, test_loader)
                     plot_evaluation(
-                        evaluate(model, dataset_test, test_loader),
+                        eval_data,
                         model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}',
-                        save_path=config.log_dir + f'/EvalPlot{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}.png'
+                        save_path=config.evaluation_dir + f'/EvalPlot{model_name}.png'
+                    )
+                    show_extreme_cases(
+                        eval_data,
+                        model_name=model_name,
+                        save_dir=config.extreme_cases_dir
                     )
 
             writes += 1
