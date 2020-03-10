@@ -141,7 +141,7 @@ def evaluate(model, dataset_test=None, test_dataloader=None, batch_size=config.t
                 [(label[i], images[i].reshape(input_shape[1], input_shape[2]), hitmap[i], score[i]) for i in
                  range(len(images))])
             data = results if data is None else np.append(data, results, axis=0)
-            if (idx + 1) % config.evaluate_print_every == 0 and config.evaluate_print_every:
+            if config.evaluate_print_every and (idx + 1) % config.evaluate_print_every == 0:
                 print(
                     '\t{:3d}/{:3d} - time : {:.3f}s'.format(
                         idx + 1,
@@ -191,6 +191,7 @@ def plot_evaluation(data: np.array, model_name=config.model_name, positive_is_an
     if save_path is not None:
         fig.savefig(save_path)
     fig.show()
+    plt.close(fig)
 
 
 def plot_loss(training_loss, validation_loss, model_name=config.model_name, save_path=None):
@@ -208,7 +209,7 @@ def plot_loss(training_loss, validation_loss, model_name=config.model_name, save
     if save_path is not None:
         plt.savefig(save_path)
     plt.show()
-    plt.clf()
+    plt.close()
 
 
 def _plot_extreme_cases(data, sorted_args, count_of_cases, model_name, is_positive, save_dir,
@@ -259,6 +260,7 @@ def _plot_extreme_cases(data, sorted_args, count_of_cases, model_name, is_positi
         fig.savefig(
             f'{save_dir}/Extreme{rows * 2}-{"Positive" if is_positive else "Negative"}-{model_name}.png')
     fig.show()
+    plt.close(fig)
 
 
 def show_extreme_cases(evalutation_data, count_of_cases=config.extreme_cases_count, model_name=config.model_name,

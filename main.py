@@ -86,7 +86,7 @@ def train():
 
     print("initializing optimizer & scheduler")
     optimizer = Adam(model.parameters(), lr=config.lr)
-    scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=config.lr_multiplicative_factor_lambda,
+    scheduler = lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=config.lr_multiplicative_factor_lambda,
                                       last_epoch=config.start_epoch - 1)
 
     def train_loop(data_loader, writes=0):
@@ -116,7 +116,7 @@ def train():
             else:
                 optimizer.step()
             train_loss += loss
-            if (batch_idx + 1) % config.print_every == 0 and config.print_every:
+            if config.print_every and (batch_idx + 1) % config.print_every == 0 :
                 deno = config.print_every * config.batch_size * np.prod(input_shape) * np.log(2.)
                 if not config.use_tpu:
                     writer.add_scalar('train/bpd', (train_loss / deno), writes + new_writes)
@@ -158,7 +158,7 @@ def train():
                 flush=True
             )
 
-            if (epoch + 1) % config.save_interval == 0:
+            if config.save_interval and (epoch + 1) % config.save_interval == 0:
                 torch.save(model.state_dict(), config.models_dir + '/{}_{}.pth'.format(config.model_name, epoch))
                 print('\tsampling epoch {:4}'.format(
                     epoch
@@ -193,15 +193,15 @@ def train():
                 validation_losses.append(validation_loss)
                 model_name = f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}'
                 # evaluation and loss tracking
-                if (epoch + 1) % config.plot_every == 0:
+                if config.plot_every and (epoch + 1) % config.plot_every == 0:
                     plot_loss(
                         train_losses,
                         validation_losses,
-                        model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-{scheduler.get_lr():.6f}'
+                        model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-{optimizer.param_groups[0]["lr"]:.7f}'
                         , save_path=config.losses_dir + f'/Losses{model_name}.png',
                     )
 
-                if (epoch + 1) % config.evaluate_every == 0:
+                if config.evaluate_every and (epoch + 1) % config.evaluate_every == 0:
                     eval_data = evaluate(model, dataset_test, test_loader)
                     plot_evaluation(
                         eval_data,

@@ -3,7 +3,7 @@ from torchvision import datasets
 from pathlib import Path
 
 # run on import
-train = False
+train = True
 
 # data I/O
 output_root = ''
@@ -12,7 +12,7 @@ data_dir = output_root + 'data'  # Location for the dataset
 models_dir = output_root + 'models'  # Location for parameter checkpoints and samples
 log_dir = output_root + 'log'
 samples_dir = log_dir + '/samples'
-losses_dir = log_dir + '/losses_dir'
+losses_dir = log_dir + '/losses'
 evaluation_dir = log_dir + '/evaluation'
 extreme_cases_dir = log_dir + '/extreme_cases'
 
@@ -52,7 +52,7 @@ nr_filters = 20  # number of filters to use across the model. (Higher = larger m
 nr_logistic_mix = 3  # Number of logistic components in the mixture. (Higher = more flexible model)
 lr_decay = 0.999995  # Learning rate decay, applied every step of the optimization
 lr_half_schedule = 512  # interval of epochs to reduce learning rate 50%
-lr_multiplicative_factor_lambda = lambda epoch: 0.5 if (epoch + 1) % lr_half_schedule else lr_decay
+lr_multiplicative_factor_lambda = lambda epoch: 0.5 if (epoch + 1) % lr_half_schedule == 0 else lr_decay
 lr = 0.0002 * lr_decay ** start_epoch  # Base learning rate
 noising_factor = 0.2  # the noise to add to each input while training the model
 noise_function = lambda x: 2 * torch.FloatTensor(*x).to(device).uniform_() - 1  # (x will be the input shape tuple)
@@ -72,6 +72,7 @@ sample_batch_size = 25
 seed = 1  # Random seed to use
 
 # ensuring the existance of output directories
+
 Path(output_root).mkdir(parents=True, exist_ok=True)
 Path(data_dir).mkdir(parents=True, exist_ok=True)
 Path(models_dir).mkdir(parents=True, exist_ok=True)
