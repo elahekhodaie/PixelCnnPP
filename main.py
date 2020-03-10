@@ -103,7 +103,6 @@ def train():
             input = input.to(config.device, non_blocking=True)
             if config.noising_factor is not None:
                 false_input = input + config.noising_factor * config.noise_function(input.shape)
-                false_input = false_input.to(config.device)
                 false_input.clamp_(min=-1, max=1)
                 output = model(false_input)
             else:
@@ -117,7 +116,7 @@ def train():
             else:
                 optimizer.step()
             train_loss += loss
-            if (batch_idx + 1) % config.print_every == 0:
+            if (batch_idx + 1) % config.print_every == 0 and config.print_every:
                 deno = config.print_every * config.batch_size * np.prod(input_shape) * np.log(2.)
                 if not config.use_tpu:
                     writer.add_scalar('train/bpd', (train_loss / deno), writes + new_writes)

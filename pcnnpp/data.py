@@ -13,7 +13,7 @@ class DatasetSelection(Dataset):
                  dataset=config.train_dataset,
                  root=config.data_dir,
                  train=True,
-                 classes=tuple(range(0, 9)),
+                 classes=tuple(range(0, 10)),
                  transform=default_transform,
                  target_transform=lambda x: x,
                  download=True,

@@ -21,6 +21,7 @@ test_dataset = datasets.MNIST
 
 # log and save config
 print_every = 11  # how many iterations between print statements
+evaluate_print_every = 20 # how many iterations between print statements in evalutation
 save_interval = 64  # Every how many epochs to write checkpoint/samples?
 plot_every = 32  # plot loss epochs interval
 evaluate_every = 64  # evaluation interval
@@ -51,7 +52,7 @@ lr_half_schedule = 512  # interval of epochs to reduce learning rate 50%
 lr_multiplicative_factor_lambda = lambda epoch: 0.5 if (epoch + 1) % lr_half_schedule else lr_decay
 lr = 0.0002 * lr_decay ** start_epoch  # Base learning rate
 noising_factor = 0.2  # the noise to add to each input while training the model
-noise_function = lambda x: 2 * torch.rand(*x) - 1  # (x will be the input shape tuple)
+noise_function = lambda x: 2 * torch.FloatTensor(*x).to(device).uniform_() - 1  # (x will be the input shape tuple)
 max_epochs = 4096  # How many epochs to run in total
 model_name = '{}lr{:.5f}resnet{}filter{}nrmix{}'.format(
     f'd{noising_factor}pcnnpp' if noising_factor is not None else 'pcnnpp', lr, nr_resnet, nr_filters,

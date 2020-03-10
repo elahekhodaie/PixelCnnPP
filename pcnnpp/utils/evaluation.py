@@ -1,11 +1,13 @@
 import torch
 import pcnnpp.config as config
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, roc_auc_score
+import numpy as np
+import time
 from pcnnpp.data import DatasetSelection
 from pcnnpp.utils.functions import get_loss_function, get_hitmap_function
-import matplotlib.pyplot as plt
-import numpy as np
-from sklearn.metrics import roc_curve, roc_auc_score
-import time
+
+np.seterr(divide='ignore', invalid='ignore')
 
 
 def to_one_hot(tensor, n, fill_with=1.):
@@ -127,22 +129,23 @@ def evaluate(model, dataset_test=None, test_dataloader=None, batch_size=config.t
         time_ = time.time()
         for idx, (inputs, labels) in enumerate(test_dataloader):
             images = inputs.numpy()
-            inputs.to(config.device)
+            inputs = inputs.to(config.device)
             output = model(inputs)
-            hitmap = hitmap_function(inputs, output).numpy()
+            hitmap = hitmap_function(inputs, output).cpu().numpy()
             log_prob = hitmap.sum(1).sum(1)
             is_anomaly = (np.isin(labels.numpy(), config.normal_classes) == (not positive_is_anomaly))
             results = np.array(
                 [(is_anomaly[i], images[i].reshape(input_shape[1], input_shape[2]), hitmap[i], log_prob[i]) for i in
                  range(len(images))])
             data = results if data is None else np.append(data, results, axis=0)
-            print(
-                '\t{:3d}/{:3d} - time : {:.3f}s'.format(
-                    idx + 1,
-                    len(test_dataloader),
-                    time.time() - time_)
-            )
-            time_ = time.time()
+            if (idx + 1) % config.evaluate_print_every == 0 and config.evaluate_print_every:
+                print(
+                    '\t{:3d}/{:3d} - time : {:.3f}s'.format(
+                        idx + 1,
+                        len(test_dataloader),
+                        time.time() - time_)
+                )
+                time_ = time.time()
     return data
 
 
@@ -178,11 +181,12 @@ def plot_evaluation(data: np.array, model_name=config.model_name, positive_is_an
     axs[1].set_xlabel('Threshold on Log(Likelihood)')
     axs[1].set_ylabel('Precision')
     axs[1].set_title('Precision')
-    axs[1].legend(loc="lower right")
     axs[1].set_aspect('auto')
     if save_path is not None:
         fig.savefig(save_path)
-    fig.show()
+    plt.show()
+    plt.clf()
+    plt.cla()
 
 
 def plot_loss(training_loss, validation_loss, model_name=config.model_name, save_path=None):
@@ -193,8 +197,10 @@ def plot_loss(training_loss, validation_loss, model_name=config.model_name, save
     plt.plot(range(config.start_epoch, config.start_epoch + len(validation_loss)), training_loss, label='Training')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
+    plt.xlim(config.start_epoch - 1, config.start_epoch + len(validation_loss) + 1)
     plt.title(f'{model_name} Epoch Losses {config.start_epoch + len(validation_loss) - 1}')
     plt.legend()
     if save_path is not None:
         plt.savefig(save_path)
     plt.show()
+    plt.clf()
