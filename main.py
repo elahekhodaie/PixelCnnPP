@@ -172,7 +172,7 @@ def train():
     try:
         writes = 0
         for epoch in range(config.start_epoch, config.max_epochs):
-            print('epoch {:4}'.format(epoch))
+            print('epoch {:4} - lr: {}'.format(epoch, optimizer.param_groups[0]["lr"]))
             if config.use_tpu:
                 para_loader = pl.ParallelLoader(train_loader, [config.device])
                 train_loop(para_loader.per_device_loader(config.device), writes)

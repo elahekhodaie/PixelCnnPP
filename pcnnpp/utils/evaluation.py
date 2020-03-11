@@ -122,7 +122,6 @@ def evaluate(model, dataset_test=None, test_dataloader=None, batch_size=config.t
         test_dataloader = dataset_test.get_dataloader(batch_size=batch_size, shuffle=False)
     input_shape = dataset_test.input_shape()
     hitmap_function = get_hitmap_function(input_shape)
-
     with torch.no_grad():
         data = None
         print(f'processing {len(test_dataloader)} test batches:')
@@ -131,7 +130,10 @@ def evaluate(model, dataset_test=None, test_dataloader=None, batch_size=config.t
             images = inputs.numpy()
             inputs = inputs.to(config.device)
             output = model(inputs)
-            hitmap = hitmap_function(inputs, output).cpu().numpy()
+            if not positive_is_anomaly:
+                hitmap = hitmap_function(inputs, output).cpu().numpy()
+            else:
+                hitmap = torch.log(1 - torch.exp(hitmap_function(inputs, output)))
             log_prob_normality = hitmap.sum(1).sum(1)
 
             score = log_prob_normality

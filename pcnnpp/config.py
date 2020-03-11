@@ -3,24 +3,7 @@ from torchvision import datasets
 from pathlib import Path
 
 # run on import
-train = True
-
-# data I/O
-output_root = ''
-use_arg_parser = False  # whether or not to use arg_parser
-data_dir = output_root + 'data'  # Location for the dataset
-models_dir = output_root + 'models'  # Location for parameter checkpoints and samples
-log_dir = output_root + 'log'
-samples_dir = log_dir + '/samples'
-losses_dir = log_dir + '/losses'
-evaluation_dir = log_dir + '/evaluation'
-extreme_cases_dir = log_dir + '/extreme_cases'
-
-train_dataset = datasets.MNIST
-normal_classes = [8]
-
-test_classes = list(range(0, 10))
-test_dataset = datasets.MNIST
+train = False
 
 # log and save config
 print_every = 11  # how many iterations between print statements
@@ -48,17 +31,17 @@ if not use_tpu:
 
 # model & training parameters
 nr_resnet = 4  # Number of residual blocks per stage of the model
-nr_filters = 20  # number of filters to use across the model. (Higher = larger model)
+nr_filters = 60  # number of filters to use across the model. (Higher = larger model)
 nr_logistic_mix = 3  # Number of logistic components in the mixture. (Higher = more flexible model)
 lr_decay = 0.999995  # Learning rate decay, applied every step of the optimization
-lr_half_schedule = 512  # interval of epochs to reduce learning rate 50%
+lr_half_schedule = 400  # interval of epochs to reduce learning rate 50%
 lr_multiplicative_factor_lambda = lambda epoch: 0.5 if (epoch + 1) % lr_half_schedule == 0 else lr_decay
-lr = 0.0002 * lr_decay ** start_epoch  # Base learning rate
-noising_factor = 0.2  # the noise to add to each input while training the model
+base_lr = 0.0002
+noising_factor = 0.1  # the noise to add to each input while training the model
 noise_function = lambda x: 2 * torch.FloatTensor(*x).to(device).uniform_() - 1  # (x will be the input shape tuple)
 max_epochs = 4096  # How many epochs to run in total
 model_name = '{}lr{:.5f}resnet{}filter{}nrmix{}'.format(
-    f'd{noising_factor}pcnnpp' if noising_factor is not None else 'pcnnpp', lr, nr_resnet, nr_filters,
+    f'd{noising_factor}pcnnpp' if noising_factor is not None else 'pcnnpp', base_lr, nr_resnet, nr_filters,
     nr_logistic_mix)
 
 # evaluation
@@ -71,8 +54,24 @@ sample_batch_size = 25
 # Reproducability
 seed = 1  # Random seed to use
 
-# ensuring the existance of output directories
+# data I/O
+output_root = '' + model_name
+use_arg_parser = False  # whether or not to use arg_parser
+data_dir = output_root + 'data'  # Location for the dataset
+models_dir = output_root + 'models'  # Location for parameter checkpoints and samples
+log_dir = output_root + 'log'
+samples_dir = log_dir + '/samples'
+losses_dir = log_dir + '/losses'
+evaluation_dir = log_dir + '/evaluation'
+extreme_cases_dir = log_dir + '/extreme_cases'
 
+train_dataset = datasets.MNIST
+normal_classes = [8]
+
+test_classes = list(range(0, 10))
+test_dataset = datasets.MNIST
+
+# ensuring the existance of output directories
 Path(output_root).mkdir(parents=True, exist_ok=True)
 Path(data_dir).mkdir(parents=True, exist_ok=True)
 Path(models_dir).mkdir(parents=True, exist_ok=True)
@@ -81,3 +80,7 @@ Path(log_dir).mkdir(parents=True, exist_ok=True)
 Path(evaluation_dir).mkdir(parents=True, exist_ok=True)
 Path(losses_dir).mkdir(parents=True, exist_ok=True)
 Path(extreme_cases_dir).mkdir(parents=True, exist_ok=True)
+
+lr = base_lr
+for i in range(start_epoch - 1):
+    lr *= lr_multiplicative_factor_lambda(i)
