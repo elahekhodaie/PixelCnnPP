@@ -6,8 +6,8 @@ from pathlib import Path
 train = False
 
 # log and save config
-print_every = 11  # how many iterations between print statements
-evaluate_print_every = 20  # how many iterations between print statements in evalutation
+print_every = 16  # how many iterations between print statements
+evaluate_print_every = 32  # how many iterations between print statements in evalutation
 save_interval = 64  # Every how many epochs to write checkpoint/samples?
 plot_every = 32  # plot loss epochs interval
 evaluate_every = 64  # evaluation interval
@@ -16,7 +16,7 @@ load_params = None  # Restore training from previous model checkpoint (specify t
 start_epoch = 0
 
 # data loader
-batch_size = 256  # Batch size during training per GPU
+batch_size = 64  # Batch size during training per GPU
 test_batch_size = batch_size
 dataloader_num_workers = 4
 dataloader_pin_memory = True
@@ -57,9 +57,9 @@ seed = 1  # Random seed to use
 # data I/O
 output_root = '' + model_name
 use_arg_parser = False  # whether or not to use arg_parser
-data_dir = output_root + 'data'  # Location for the dataset
-models_dir = output_root + 'models'  # Location for parameter checkpoints and samples
-log_dir = output_root + 'log'
+data_dir = output_root + '/data'  # Location for the dataset
+models_dir = output_root + '/models'  # Location for parameter checkpoints and samples
+log_dir = output_root + '/log'
 samples_dir = log_dir + '/samples'
 losses_dir = log_dir + '/losses'
 evaluation_dir = log_dir + '/evaluation'
