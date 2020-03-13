@@ -30,6 +30,7 @@ if not use_tpu:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # model & training parameters
+adversarial_training_mode = True
 nr_resnet = 4  # Number of residual blocks per stage of the model
 nr_filters = 60  # number of filters to use across the model. (Higher = larger model)
 nr_logistic_mix = 3  # Number of logistic components in the mixture. (Higher = more flexible model)
