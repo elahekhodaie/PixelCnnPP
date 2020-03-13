@@ -105,6 +105,51 @@ def train():
                 false_input = input + config.noising_factor * config.noise_function(input.shape)
                 false_input.clamp_(min=-1, max=1)
                 output = model(false_input)
+            elif config.adversarial_training_mode is True:
+                for epoch in range(config.max_epochs/4):
+                    start = datetime.now()
+                    total_loss = 0
+                    itr = 0
+                    for data in dataloader:
+                        img, _ = data
+                #         img -= data_mean\n",
+                        adv_img = pgd_attack(img, model, MNIST = False)
+                #         adv_img = add_noise(img)\n",
+                        img = Variable(img).cuda()
+                        adv_img = Variable(adv_img).cuda()
+                        #------------------------forward---------------------------------
+                        model(img)
+                        ori_latent = model.latent
+                        output = model(adv_img)
+                        adv_latent = model.latent
+                        AE_loss = criterion(output, img)
+                        latent_loss = criterion(adv_latent, ori_latent)
+                        loss = 0.1 *  latent_loss + AE_loss
+                        #------------------------backward---------------------------------
+                        optimizer.zero_grad()
+                        loss.backward()
+                        optimizer.step()
+                        itr += 1
+                        total_loss += loss.item()
+                    #------------------------print results ---------------------------------
+                   # print('epoch [{}/{}], loss:{:.4f}.format(epoch + 1, num_epochs, total_loss / itr))
+                        #for every 20 epochs the results are printed
+                        if epoch % 20 == 0:
+                            raw_input = to_img(img.cpu().data)
+                            output_pic = to_img(output.cpu().data)
+                            adv_input = to_img(adv_img.cpu().data)
+                         #   show_process_for_trainortest(raw_input, output_pic, adv_input, train=True, attack=True)
+                         #   print(\"loss_latent : \", latent_loss.item())
+                         #   print(\"loss_AE : \", AE_loss.item())
+                        if epoch % 20 == 0:
+                            torch.save({
+                                'epoch': epoch + last_epoch,
+                                'model_state_dict': model.state_dict(),
+                                'optimizer_state_dict': optimizer.state_dict(),
+                                'loss': loss,
+                                }, './CIFAR_64_32_random_eps=0.1_0_latent=64_k=0.1.pth')
+                        print(datetime.now() - start)
+
             else:
                 output = model(input)
             loss = loss_function(input, output)
@@ -218,6 +263,39 @@ def train():
     except KeyboardInterrupt:
         pass
     return model, train_losses, validation_losses
+
+    def pgd_attack(inputs, model, eps=0.2, alpha=0.05, iteration=20, train=True, MNIST = True):
+
+
+        inputs = inputs.cuda()
+        original_inputs = inputs
+        loss_latent_avg = 0
+        loss_AE_avg = 0
+        delta = torch.randn_like(inputs, dtype=torch.float)
+        delta = torch.clamp(delta, min=-eps, max=eps)
+        inputs += delta
+        inputs = torch.clamp(inputs, min=0, max=1)
+        for i in range(iteration):
+            inputs.requires_grad = True
+            outputs = model(inputs)
+            latent_out = model.latent
+            model(original_inputs)
+            model.zero_grad()
+   # mse loss latent
+            loss_latent = torch.mean(torch.sum((latent_out - model.latent) ** 2, dim=1))
+            loss_AE = torch.mean(torch.sum((outputs - original_inputs) ** 2, dim=1))
+            total_loss = 0 * loss_AE + loss_latent
+            loss_latent_avg += loss_latent
+            loss_AE_avg += loss_AE
+            total_loss.backward()
+            if train:
+                adv_inputs = inputs + alpha*inputs.grad.sign()
+            else:
+                adv_inputs = inputs - alpha*inputs.grad.sign()
+            eta = torch.clamp(adv_inputs - original_inputs, min=-eps, max=eps)
+            inputs = torch.clamp(original_inputs + eta, min=0, max=1).detach_()
+        return inputs
+
 
 
 if config.use_tpu:
