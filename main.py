@@ -138,7 +138,7 @@ def train():
                             raw_input = to_img(img.cpu().data)
                             output_pic = to_img(output.cpu().data)
                             adv_input = to_img(adv_img.cpu().data)
-                         #   show_process_for_trainortest(raw_input, output_pic, adv_input, train=True, attack=True)
+                            show_process (raw_input, output_pic, adv_input, train=True, attack=True)
                          #   print(\"loss_latent : \", latent_loss.item())
                          #   print(\"loss_AE : \", AE_loss.item())
                         if epoch % 20 == 0:
@@ -264,37 +264,68 @@ def train():
         pass
     return model, train_losses, validation_losses
 
-    def pgd_attack(inputs, model, eps=0.2, alpha=0.05, iteration=20, train=True, MNIST = True):
+def pgd_attack(inputs, model, eps=0.2, alpha=0.05, iteration=20, train=True, MNIST = True):
+    inputs = inputs.cuda()
+    original_inputs = inputs
+    loss_latent_avg = 0
+    loss_AE_avg = 0
+    delta = torch.randn_like(inputs, dtype=torch.float)
+    delta = torch.clamp(delta, min=-eps, max=eps)
+    inputs += delta
+    inputs = torch.clamp(inputs, min=0, max=1)
+    for i in range(iteration):
+        inputs.requires_grad = True
+        outputs = model(inputs)
+        latent_out = model.latent
+        model(original_inputs)
+        model.zero_grad()
+        # mse loss latent
+        loss_latent = torch.mean(torch.sum((latent_out - model.latent) ** 2, dim=1))
+        loss_AE = torch.mean(torch.sum((outputs - original_inputs) ** 2, dim=1))
+        total_loss = 0 * loss_AE + loss_latent
+        loss_latent_avg += loss_latent
+        loss_AE_avg += loss_AE
+        total_loss.backward()
+        if train:
+            adv_inputs = inputs + alpha * inputs.grad.sign()
+        else:
+            adv_inputs = inputs - alpha * inputs.grad.sign()
+        eta = torch.clamp(adv_inputs - original_inputs, min=-eps, max=eps)
+        inputs = torch.clamp(original_inputs + eta, min=0, max=1).detach_()
+    return inputs
 
 
-        inputs = inputs.cuda()
-        original_inputs = inputs
-        loss_latent_avg = 0
-        loss_AE_avg = 0
-        delta = torch.randn_like(inputs, dtype=torch.float)
-        delta = torch.clamp(delta, min=-eps, max=eps)
-        inputs += delta
-        inputs = torch.clamp(inputs, min=0, max=1)
-        for i in range(iteration):
-            inputs.requires_grad = True
-            outputs = model(inputs)
-            latent_out = model.latent
-            model(original_inputs)
-            model.zero_grad()
-   # mse loss latent
-            loss_latent = torch.mean(torch.sum((latent_out - model.latent) ** 2, dim=1))
-            loss_AE = torch.mean(torch.sum((outputs - original_inputs) ** 2, dim=1))
-            total_loss = 0 * loss_AE + loss_latent
-            loss_latent_avg += loss_latent
-            loss_AE_avg += loss_AE
-            total_loss.backward()
-            if train:
-                adv_inputs = inputs + alpha*inputs.grad.sign()
-            else:
-                adv_inputs = inputs - alpha*inputs.grad.sign()
-            eta = torch.clamp(adv_inputs - original_inputs, min=-eps, max=eps)
-            inputs = torch.clamp(original_inputs + eta, min=0, max=1).detach_()
-        return inputs
+
+def show_process (input_img, recons_img, attacked_img = None, train=True, attack=False):
+    n = input_img.shape[0]
+    if train:
+        print("Inputs:")
+        show(input_img[0:n].view((1,-1,28,28))[0].cpu())
+        # Calculate reconstructions\n",
+        if attack:
+            print("Inputs after attack:")
+            show(attacked_img[0:n].view((1, -1, 28, 28))[0].cpu().detach().numpy())
+        print("Reconstructions:")
+        show(recons_img[0:n].view((1,-1,28,28))[0].cpu().detach().numpy())
+    else:
+        print("Test Inputs:")
+        show(input_img[0:n].view((1, -1, 28, 28))[0].cpu())
+        # Calculate reconstructions\n",
+        print("Test Reconstructions:")
+        show(recons_img[0:n].view((1, -1, 28, 28))[0].cpu().detach().numpy())
+
+
+def show(image_batch, rows=1):
+        # Set Plot dimensions\n",
+        cols = np.ceil(image_batch.shape[0] / rows)
+        plt.rcParams['figure.figsize'] = (0.0 + cols, 0.0 + rows) # set default size of plots\n",
+        for i in range(image_batch.shape[0]):
+            plt.subplot(rows, cols, i + 1)
+            plt.imshow(image_batch[i], cmap=gray)
+            plt.axis('off')
+        plt.show()
+
+
 
 
 
