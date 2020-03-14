@@ -115,7 +115,7 @@ def train():
                         x_adv = pgd_attack(model, x, y, loss_function, iteration_num= 40, step_size=0.01,
                                            eps=0.2, eps_norm='inf', step_norm='inf')
 
-                      #  adv_img = Variable(x_adv).cuda()
+                        adv_img = Variable(x_adv).cuda()
 
                         #------------------------backward---------------------------------
                         optimizer.zero_grad()
@@ -127,21 +127,21 @@ def train():
                         total_loss += loss.item()
                     #------------------------print results ---------------------------------
                    # print('epoch [{}/{}], loss:{:.4f}.format(epoch + 1, num_epochs, total_loss / itr))
-                        #for every 20 epochs the results are printed
-                        if epoch % 20 == 0:
-                            raw_input = to_img(img.cpu().data)
+                        #for every 10 epochs the results are printed
+                        if epoch % 10 == 0:
+                            raw_input = to_img(input.cpu().data)
                             output_pic = to_img(output.cpu().data)
                             adv_input = to_img(adv_img.cpu().data)
                             show_process (raw_input, output_pic, adv_input, train=True, attack=True)
                          #   print(\"loss_latent : \", latent_loss.item())
                          #   print(\"loss_AE : \", AE_loss.item())
-                        if epoch % 20 == 0:
-                            torch.save({
-                                'epoch': epoch + last_epoch,
-                                'model_state_dict': model.state_dict(),
-                                'optimizer_state_dict': optimizer.state_dict(),
-                                'loss': loss,
-                                }, './CIFAR_64_32_random_eps=0.1_0_latent=64_k=0.1.pth')
+                        #if epoch % 10 == 0:
+                           # torch.save({
+                            #    'epoch': epoch + last_epoch,
+                            #   'model_state_dict': model.state_dict(),
+                            #    'optimizer_state_dict': optimizer.state_dict(),
+                            #    'loss': loss,
+                            #    }, './CIFAR_64_32_random_eps=0.1_0_latent=64_k=0.1.pth')
                         print(datetime.now() - start)
 
             else:
