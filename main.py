@@ -10,6 +10,7 @@ from pcnnpp import config
 from pcnnpp.data import DatasetSelection, rescaling_inv
 from pcnnpp.utils.functions import get_loss_function
 from pcnnpp.utils.evaluation import sample, plot_loss, evaluate, plot_evaluation, show_extreme_cases
+from torch import optim
 
 if config.use_tpu:
     import torch_xla
@@ -106,27 +107,20 @@ def train():
                 false_input.clamp_(min=-1, max=1)
                 output = model(false_input)
             elif config.adversarial_training_mode is True:
-                for epoch in range(config.max_epochs/4):
+                optimizer = optim.SGD(model.parameters(), lr=0.1)
+                for epoch in range(60):
                     start = datetime.now()
-                    total_loss = 0
                     itr = 0
-                    for data in dataloader:
-                        img, _ = data
-                #         img -= data_mean\n",
-                        adv_img = pgd_attack(img, model, MNIST = False)
-                #         adv_img = add_noise(img)\n",
-                        img = Variable(img).cuda()
-                        adv_img = Variable(adv_img).cuda()
-                        #------------------------forward---------------------------------
-                        model(img)
-                        ori_latent = model.latent
-                        output = model(adv_img)
-                        adv_latent = model.latent
-                        AE_loss = criterion(output, img)
-                        latent_loss = criterion(adv_latent, ori_latent)
-                        loss = 0.1 *  latent_loss + AE_loss
+                    for x, y in train_loader:
+                        x_adv = pgd_attack(model, x, y, loss_function, iteration_num= 40, step_size=0.01,
+                                           eps=0.2, eps_norm='inf', step_norm='inf')
+
+                      #  adv_img = Variable(x_adv).cuda()
+
                         #------------------------backward---------------------------------
                         optimizer.zero_grad()
+                        predicted_y = model(x_adv)
+                        loss= loss_function(predicted_y, y)
                         loss.backward()
                         optimizer.step()
                         itr += 1
@@ -264,10 +258,10 @@ def train():
         pass
     return model, train_losses, validation_losses
 
-def pgd_attack(inputs,x, y, model, eps=0.2, alpha=0.05, iteration_num=20, train=True, MNIST = True):
-    inputs = inputs.cuda()
+def pgd_attack(model, x, y, loss_function, iteration_num , step_size, step_norm, eps, eps_norm,
+                               clamp=(-1,1), y_target=None):
+    #inputs = inputs.cuda()
 
-    x = input
     x_adv = x.clone().detach().requires_grad_(True).to(x.device)
     targeted_label = y_target is not None
     num_channels = x.shape[0]
@@ -283,7 +277,7 @@ def pgd_attack(inputs,x, y, model, eps=0.2, alpha=0.05, iteration_num=20, train=
         optimizer.zero_grad()
         loss.backward()
 
-        step_size = alpha
+       # step_size = alpha
         with torch.no_grad():
             if step_norm == 'inf':
                 gradients = _x_adv.grad.sign() * step_size
