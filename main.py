@@ -124,13 +124,13 @@ def train():
                         loss.backward()
                         optimizer.step()
                         itr += 1
-                        total_loss += loss.item()
+                        train_loss += loss.item()
                     #------------------------print results ---------------------------------
                    # print('epoch [{}/{}], loss:{:.4f}.format(epoch + 1, num_epochs, total_loss / itr))
                         #for every 10 epochs the results are printed
                         if epoch % 10 == 0:
-                            raw_input = to_img(input.cpu().data)
-                            output_pic = to_img(output.cpu().data)
+                            raw_input = to_img(x.cpu().data)
+                            output_pic = to_img(y.cpu().data)
                             adv_input = to_img(adv_img.cpu().data)
                             show_process (raw_input, output_pic, adv_input, train=True, attack=True)
                          #   print(\"loss_latent : \", latent_loss.item())
@@ -150,12 +150,13 @@ def train():
                 loss = loss_function(input, output)
                 optimizer.zero_grad()
                 loss.backward()
-#            if config.use_tpu:
-#                xm.optimizer_step(optimizer)
-#                tracker.add(config.batch_size)
-#            else:
-#                optimizer.step()
-            train_loss += loss
+                train_loss += loss
+            # if config.use_tpu:
+            #     xm.optimizer_step(optimizer)
+            #     tracker.add(config.batch_size)
+            # else:
+                optimizer.step()
+
             if config.print_every and (batch_idx + 1) % config.print_every == 0 :
                 deno = config.print_every * config.batch_size * np.prod(input_shape) * np.log(2.)
                 if not config.use_tpu:

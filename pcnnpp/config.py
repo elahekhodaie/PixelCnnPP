@@ -38,7 +38,7 @@ lr_decay = 0.999995  # Learning rate decay, applied every step of the optimizati
 lr_half_schedule = 400  # interval of epochs to reduce learning rate 50%
 lr_multiplicative_factor_lambda = lambda epoch: 0.5 if (epoch + 1) % lr_half_schedule == 0 else lr_decay
 base_lr = 0.0002
-noising_factor = 0  # the noise to add to each input while training the model
+noising_factor = None  # the noise to add to each input while training the model
 noise_function = lambda x: 2 * torch.FloatTensor(*x).to(device).uniform_() - 1  # (x will be the input shape tuple)
 max_epochs = 4096  # How many epochs to run in total
 model_name = '{}lr{:.5f}resnet{}filter{}nrmix{}'.format(
