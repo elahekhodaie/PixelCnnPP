@@ -145,15 +145,16 @@ def train():
                         print(datetime.now() - start)
 
             else:
+                optimizer = Adam(model.parameters(), lr=config.lr)
                 output = model(input)
-            loss = loss_function(input, output)
-            optimizer.zero_grad()
-            loss.backward()
-            if config.use_tpu:
-                xm.optimizer_step(optimizer)
-                tracker.add(config.batch_size)
-            else:
-                optimizer.step()
+                loss = loss_function(input, output)
+                optimizer.zero_grad()
+                loss.backward()
+#            if config.use_tpu:
+#                xm.optimizer_step(optimizer)
+#                tracker.add(config.batch_size)
+#            else:
+#                optimizer.step()
             train_loss += loss
             if config.print_every and (batch_idx + 1) % config.print_every == 0 :
                 deno = config.print_every * config.batch_size * np.prod(input_shape) * np.log(2.)
