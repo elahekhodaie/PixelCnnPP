@@ -264,35 +264,62 @@ def train():
         pass
     return model, train_losses, validation_losses
 
-def pgd_attack(inputs, model, eps=0.2, alpha=0.05, iteration=20, train=True, MNIST = True):
+def pgd_attack(inputs,x, y, model, eps=0.2, alpha=0.05, iteration_num=20, train=True, MNIST = True):
     inputs = inputs.cuda()
-    original_inputs = inputs
-    loss_latent_avg = 0
-    loss_AE_avg = 0
-    delta = torch.randn_like(inputs, dtype=torch.float)
-    delta = torch.clamp(delta, min=-eps, max=eps)
-    inputs += delta
-    inputs = torch.clamp(inputs, min=0, max=1)
-    for i in range(iteration):
-        inputs.requires_grad = True
-        outputs = model(inputs)
-        latent_out = model.latent
-        model(original_inputs)
-        model.zero_grad()
-        # mse loss latent
-        loss_latent = torch.mean(torch.sum((latent_out - model.latent) ** 2, dim=1))
-        loss_AE = torch.mean(torch.sum((outputs - original_inputs) ** 2, dim=1))
-        total_loss = 0 * loss_AE + loss_latent
-        loss_latent_avg += loss_latent
-        loss_AE_avg += loss_AE
-        total_loss.backward()
-        if train:
-            adv_inputs = inputs + alpha * inputs.grad.sign()
+
+    x = input
+    x_adv = x.clone().detach().requires_grad_(True).to(x.device)
+    targeted_label = y_target is not None
+    num_channels = x.shape[0]
+
+
+    for i in range(iteration_num):
+
+        # x_adv is the adversarial built model which is given to calculate the loss as an input
+
+        _x_adv = x_adv.clone().detach().requires_grad_(True)
+        prediction_output = model(_x_adv)
+        loss = loss_function(prediction_output, y_target if targeted else y)
+        optimizer.zero_grad()
+        loss.backward()
+
+        step_size = alpha
+        with torch.no_grad():
+            if step_norm == 'inf':
+                gradients = _x_adv.grad.sign() * step_size
+            else:
+                gradients = _x_adv.grad * step_size / _x_adv.grad.view(_x_adv.shape[0], -1) \
+                    .norm(step_norm, dim=-1) \
+                    .view(-1, num_channels, 1, 1)
+
+            if targeted_label:
+                # in the non training state with incorrect labels
+                x_adv -= gradients
+            else:
+                # the model parameters
+                x_adv += gradients
+
+        # Project back
+        #this part calculates the norm and finds the similarity between the constructed image
+        # and the first input image , it has two different modes L2 mode or L inf mode
+        if eps_norm == 'inf':
+            x_adv = torch.max(torch.min(x_adv, x + eps), x - eps)
         else:
-            adv_inputs = inputs - alpha * inputs.grad.sign()
-        eta = torch.clamp(adv_inputs - original_inputs, min=-eps, max=eps)
-        inputs = torch.clamp(original_inputs + eta, min=0, max=1).detach_()
-    return inputs
+            delta = x_adv - x
+            # first dimension is the batch dimension
+            similarity_value = delta.view(delta.shape[0], -1).norm(norm, dim=1) <= eps
+
+            scaling_factor = delta.view(delta.shape[0], -1).norm(norm, dim=1)
+            scaling_factor[similarity_value] = eps
+            delta *= eps / scaling_factor.view(-1, 1, 1, 1)
+            x_adv = x + delta
+
+        x_adv = x_adv.clamp(*clamp)
+
+    return x_adv.detach()
+
+
+
 
 
 
