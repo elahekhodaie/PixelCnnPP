@@ -270,7 +270,7 @@ def train():
 
 def pgd_attack(optimizer,model, x, y, loss_function, iteration_num , step_size, step_norm, eps, eps_norm,
                                clamp=(-1,1), y_target=None):
-    print("")
+    print("has reached this pgd attack")
     #inputs = inputs.cuda()
 
     x_adv = x.clone().detach().requires_grad_(True).to(x.device)
@@ -285,6 +285,9 @@ def pgd_attack(optimizer,model, x, y, loss_function, iteration_num , step_size, 
         # x_adv is the adversarial built model which is given to calculate the loss as an input
         _x_adv = x_adv.clone().detach().requires_grad_(True)
         prediction_output = model(_x_adv)
+
+
+# have to add the model.grad requires  false to turn off other parameters in grad
 
         loss = loss_function(prediction_output, y_target if targeted else y)
         optimizer.zero_grad()
