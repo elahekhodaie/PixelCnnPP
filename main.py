@@ -118,16 +118,16 @@ def train():
                 for epoch in range(60):
                     #start = datetime.now()
                     itr = 0
-                    for x, y in train_loader:
-                        x_adv = pgd_attack(optimizer,model, x, y, loss_function, iteration_num= 40, step_size=0.01,
-                                           eps=0.2, eps_norm='inf', step_norm='inf')
+                    for data in data_loader:
+                        image,_ = data
+                        iter_steps = 20
+                        adv_img = pgd_attack(loss_function, model, iter_steps,image,  random_start = true, eps = 0.2)
+                        image = Variable(image).cuda()
+                        adv_img = Variable(adv_img).cuda()
+                        input =model(image)
+                        output = model(adv_img)
+                        loss = loss_function(output,input )
 
-                        adv_img = Variable(x_adv).cuda()
-
-                        #------------------------backward---------------------------------
-
-                        predicted_y = model(x_adv)
-                        loss= loss_function(predicted_y, y)
                         optimizer.zero_grad()
                         loss.backward()
                         optimizer.step()
@@ -150,7 +150,7 @@ def train():
                             #    'optimizer_state_dict': optimizer.state_dict(),
                             #    'loss': loss,
                             #    }, './CIFAR_64_32_random_eps=0.1_0_latent=64_k=0.1.pth')
-                        print(datetime.now() - start)
+                        #print(datetime.now() - start)
 
             else:
                 #optimizer = Adam(model.parameters(), lr=config.lr)
@@ -162,7 +162,7 @@ def train():
             # if config.use_tpu:
             #     xm.optimizer_step(optimizer)
             #     tracker.add(config.batch_size)
-            # else:
+           # else:
                 optimizer.step()
 
             if config.print_every and (batch_idx + 1) % config.print_every == 0 :
@@ -268,70 +268,88 @@ def train():
         pass
     return model, train_losses, validation_losses
 
-def pgd_attack(optimizer,model, x, y, loss_function, iteration_num , step_size, step_norm, eps, eps_norm,
-                               clamp=(-1,1), y_target=None):
-    print("has reached this pgd attack")
-    #inputs = inputs.cuda()
+#Pgd attack in the mode we use optimizer
 
-    x_adv = x.clone().detach().requires_grad_(True).to(x.device)
-    targeted = y_target is not None
+# def pgd_attack(optimizer,model, x, y, loss_function, iteration_num , step_size, step_norm, eps, eps_norm,
+#                                clamp=(-1,1), y_target=None):
+#     print("has reached this pgd attack")
+#     #inputs = inputs.cuda()
+#     x_adv = x.clone().detach().requires_grad_(True).to(x.device)
+#     targeted = y_target is not None
+#     num_channels = x.shape[0]
+#     original_img = x
+#
+#     for i in range(iteration_num):
+#         # x_adv is the adversarial built model which is given to calculate the loss as an input
+#         _x_adv = x_adv.clone().detach().requires_grad_(True)
+#         prediction_output = model(_x_adv)
+# # have to add the model.grad requires  false to turn off other parameters in grad
+#
+#         loss = loss_function(prediction_output, y_target if targeted else y)
+#         optimizer.zero_grad()
+#         loss.backward()
+#
+#        # step_size = alpha
+#         with torch.no_grad():
+#             if step_norm == 'inf':
+#                 gradients = _x_adv.grad.sign() * step_size
+#             else:
+#                 gradients = _x_adv.grad * step_size / _x_adv.grad.view(_x_adv.shape[0], -1) \
+#                     .norm(step_norm, dim=-1) \
+#                     .view(-1, num_channels, 1, 1)
+#             if targeted:
+#                 # in the non training state with incorrect labels
+#                 x_adv -= gradients
+#             else:
+#                 # the model parameters
+#                 x_adv += gradients
+#
+#         # Project back
+#         #this part calculates the norm and finds the similarity between the constructed image
+#         # and the first input image , it has two different modes L2 mode or L inf mode
+#         if eps_norm == 'inf':
+#             x_adv = torch.max(torch.min(x_adv, x + eps), x - eps)
+#         else:
+#             delta = x_adv - x
+#             # first dimension is the batch dimension
+#             similarity_value = delta.view(delta.shape[0], -1).norm(norm, dim=1) <= eps
+#             scaling_factor = delta.view(delta.shape[0], -1).norm(norm, dim=1)
+#             scaling_factor[similarity_value] = eps
+#             delta *= eps / scaling_factor.view(-1, 1, 1, 1)
+#             x_adv = x + delta
+#         #the clamp is between -1, 1
+#         x_adv = x_adv.clamp(*clamp)
+#     return x_adv.detach()
+#
 
-    num_channels = x.shape[0]
-    original_img = x
+def pgd_attack(loss_function, model, iter_steps,input, output , random_start = true, eps = 0.2):
+    #loss function in NLL, no need to convert to One hot vector
+    #input = Variable(torch.rand(1), requires_grad=True)
 
+    grad = torch.autograd.grad(loss_function, input)[0]
+    original_input = input
 
-    for i in range(iteration_num):
+    #random_start show s that if we start from the input or from a random perturbation of it
+    if random_start:
+        delta = torch.randn_like(input, dtype=torch.float)
+        delta = torch.clamp(delta, min=-eps, max=eps)
+        input += delta
+        input = torch.clamp(input, min=0, max=1)
+    else:
+        input = np.copy(original_input)
 
-        # x_adv is the adversarial built model which is given to calculate the loss as an input
-        _x_adv = x_adv.clone().detach().requires_grad_(True)
-        prediction_output = model(_x_adv)
+    for i in range(iter_steps):
+        input.requires_grad = True
+       # output= model(input)
+        model.zero_grad()
 
-
-# have to add the model.grad requires  false to turn off other parameters in grad
-
-        loss = loss_function(prediction_output, y_target if targeted else y)
-        optimizer.zero_grad()
-        loss.backward()
-
-       # step_size = alpha
-        with torch.no_grad():
-            if step_norm == 'inf':
-                gradients = _x_adv.grad.sign() * step_size
-            else:
-                gradients = _x_adv.grad * step_size / _x_adv.grad.view(_x_adv.shape[0], -1) \
-                    .norm(step_norm, dim=-1) \
-                    .view(-1, num_channels, 1, 1)
-
-            if targeted:
-                # in the non training state with incorrect labels
-                x_adv -= gradients
-            else:
-                # the model parameters
-                x_adv += gradients
-
-        # Project back
-        #this part calculates the norm and finds the similarity between the constructed image
-        # and the first input image , it has two different modes L2 mode or L inf mode
-        if eps_norm == 'inf':
-            x_adv = torch.max(torch.min(x_adv, x + eps), x - eps)
+        if train:
+            adv_inputs = input + alpha * input.grad.sign()
         else:
-            delta = x_adv - x
-            # first dimension is the batch dimension
-            similarity_value = delta.view(delta.shape[0], -1).norm(norm, dim=1) <= eps
-
-            scaling_factor = delta.view(delta.shape[0], -1).norm(norm, dim=1)
-            scaling_factor[similarity_value] = eps
-            delta *= eps / scaling_factor.view(-1, 1, 1, 1)
-            x_adv = x + delta
-
-        #the clamp is between -1, 1
-        x_adv = x_adv.clamp(*clamp)
-
-    return x_adv.detach()
-
-
-
-
+            adv_inputs = input - alpha * input.grad.sign()
+        eta = torch.clamp(adv_inputs - ori_inputs, min = -eps, max = eps)
+        input = torch.clamp(ori_inputs + eta, min = 0, max=1).detach_()
+    return input
 
 
 def show_process (input_img, recons_img, attacked_img = None, train=True, attack=False):
