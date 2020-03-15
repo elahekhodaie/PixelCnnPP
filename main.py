@@ -116,7 +116,7 @@ def train():
             elif config.adversarial_training_mode is True:
 
                 for epoch in range(60):
-                    start = datetime.now()
+                    #start = datetime.now()
                     itr = 0
                     for x, y in train_loader:
                         x_adv = pgd_attack(optimizer,model, x, y, loss_function, iteration_num= 40, step_size=0.01,
