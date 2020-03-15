@@ -11,6 +11,7 @@ from pcnnpp.data import DatasetSelection, rescaling_inv
 from pcnnpp.utils.functions import get_loss_function
 from pcnnpp.utils.evaluation import sample, plot_loss, evaluate, plot_evaluation, show_extreme_cases
 from torch import optim
+import matplotlib.pyplot as plt
 
 if config.use_tpu:
     import torch_xla
@@ -86,7 +87,13 @@ def train():
     model = init_model(input_shape)
 
     print("initializing optimizer & scheduler")
-    optimizer = Adam(model.parameters(), lr=config.lr)
+
+    # change the optimizer to non parameter mode for adversarial  mode
+
+    #optimizer = Adam(model.parameters(), lr=config.lr)
+    optimizer = optim.SGD(model.parameters(), lr = config.lr)
+   # optimizer = optim.SGD()
+
     scheduler = lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=config.lr_multiplicative_factor_lambda,
                                       last_epoch=config.start_epoch - 1)
 
@@ -107,20 +114,21 @@ def train():
                 false_input.clamp_(min=-1, max=1)
                 output = model(false_input)
             elif config.adversarial_training_mode is True:
-                optimizer = optim.SGD(model.parameters(), lr=0.1)
+
                 for epoch in range(60):
                     start = datetime.now()
                     itr = 0
                     for x, y in train_loader:
-                        x_adv = pgd_attack(model, x, y, loss_function, iteration_num= 40, step_size=0.01,
+                        x_adv = pgd_attack(optimizer,model, x, y, loss_function, iteration_num= 40, step_size=0.01,
                                            eps=0.2, eps_norm='inf', step_norm='inf')
 
                         adv_img = Variable(x_adv).cuda()
 
                         #------------------------backward---------------------------------
-                        optimizer.zero_grad()
+
                         predicted_y = model(x_adv)
                         loss= loss_function(predicted_y, y)
+                        optimizer.zero_grad()
                         loss.backward()
                         optimizer.step()
                         itr += 1
@@ -145,7 +153,7 @@ def train():
                         print(datetime.now() - start)
 
             else:
-                optimizer = Adam(model.parameters(), lr=config.lr)
+                #optimizer = Adam(model.parameters(), lr=config.lr)
                 output = model(input)
                 loss = loss_function(input, output)
                 optimizer.zero_grad()
@@ -260,21 +268,24 @@ def train():
         pass
     return model, train_losses, validation_losses
 
-def pgd_attack(model, x, y, loss_function, iteration_num , step_size, step_norm, eps, eps_norm,
+def pgd_attack(optimizer,model, x, y, loss_function, iteration_num , step_size, step_norm, eps, eps_norm,
                                clamp=(-1,1), y_target=None):
+    print("")
     #inputs = inputs.cuda()
 
     x_adv = x.clone().detach().requires_grad_(True).to(x.device)
-    targeted_label = y_target is not None
+    targeted = y_target is not None
+
     num_channels = x.shape[0]
+    original_img = x
 
 
     for i in range(iteration_num):
 
         # x_adv is the adversarial built model which is given to calculate the loss as an input
-
         _x_adv = x_adv.clone().detach().requires_grad_(True)
         prediction_output = model(_x_adv)
+
         loss = loss_function(prediction_output, y_target if targeted else y)
         optimizer.zero_grad()
         loss.backward()
@@ -288,7 +299,7 @@ def pgd_attack(model, x, y, loss_function, iteration_num , step_size, step_norm,
                     .norm(step_norm, dim=-1) \
                     .view(-1, num_channels, 1, 1)
 
-            if targeted_label:
+            if targeted:
                 # in the non training state with incorrect labels
                 x_adv -= gradients
             else:
@@ -310,6 +321,7 @@ def pgd_attack(model, x, y, loss_function, iteration_num , step_size, step_norm,
             delta *= eps / scaling_factor.view(-1, 1, 1, 1)
             x_adv = x + delta
 
+        #the clamp is between -1, 1
         x_adv = x_adv.clamp(*clamp)
 
     return x_adv.detach()

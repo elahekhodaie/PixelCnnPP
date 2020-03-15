@@ -3,4 +3,4 @@ numpy
 torchvision
 pillow
 tensorboardX
- matplotlib
+matplotlib
