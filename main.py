@@ -322,7 +322,7 @@ def train():
 #     return x_adv.detach()
 #
 
-def pgd_attack(loss_function, model, iter_steps,input, output , random_start = true, eps = 0.2):
+def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps = 0.2):
     #loss function in NLL, no need to convert to One hot vector
     #input = Variable(torch.rand(1), requires_grad=True)
 
@@ -352,7 +352,7 @@ def pgd_attack(loss_function, model, iter_steps,input, output , random_start = t
     return input
 
 
-def show_process (input_img, recons_img, attacked_img = None, train=True, attack=False):
+def show_process (input_img, recons_img, attacked_img = None, train = True, attack=False):
     n = input_img.shape[0]
     if train:
         print("Inputs:")
