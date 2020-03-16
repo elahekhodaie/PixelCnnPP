@@ -127,15 +127,15 @@ def train():
                         print (n)
 
                         adv_img, loss = pgd_attack(loss_function, model, iter_steps,image,  random_start = True, eps = 0.2)
-                        image = Variable(image).cuda()
+
 
                         print ("the shape of image after pgd is :")
                         m = adv_img.shape
                         print (m)
-
-
+                        image = Variable(image).cuda()
                         adv_img = Variable(adv_img).cuda()
-                        input =model(image)
+
+                        model(image)
                         output = model(adv_img)
                         # loss = loss_function(output,input )
                         #
@@ -145,10 +145,11 @@ def train():
                         itr += 1
                         train_loss += loss.item()
                     #------------------------print results ---------------------------------
-                   # print('epoch [{}/{}], loss:{:.4f}.format(epoch + 1, num_epochs, total_loss / itr))
+                   
                         #for every 10 epochs the results are printed
                         if epoch % 10 == 0:
                             raw_input = to_img(image.cpu().data)
+                            print ("this is to image for output")
                             output_pic = to_img(output.cpu().data)
                             adv_input = to_img(adv_img.cpu().data)
                             show_process (raw_input, output_pic, adv_input, train=True, attack=True)
