@@ -40,7 +40,7 @@ lr_multiplicative_factor_lambda = lambda epoch: 0.5 if (epoch + 1) % lr_half_sch
 base_lr = 0.0002
 noising_factor = None  # the noise to add to each input while training the model
 noise_function = lambda x: 2 * torch.FloatTensor(*x).to(device).uniform_() - 1  # (x will be the input shape tuple)
-max_epochs = 4096  # How many epochs to run in total
+max_epochs = 70  # How many epochs to run in total
 model_name = '{}lr{:.5f}resnet{}filter{}nrmix{}'.format(
     f'd{noising_factor}pcnnpp' if noising_factor is not None else 'pcnnpp', base_lr, nr_resnet, nr_filters,
     nr_logistic_mix)

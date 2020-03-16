@@ -91,10 +91,8 @@ def train():
 
     # change the optimizer to non parameter mode for adversarial  mode
 
-    #optimizer = Adam(model.parameters(), lr=config.lr)
-    optimizer = optim.SGD(model.parameters(), lr = config.lr)
-   # optimizer = optim.SGD()
-
+    optimizer = Adam(model.parameters(), lr = config.lr)
+   # optimizer = optim.SGD(model.parameters(), lr = config.lr)
     scheduler = lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=config.lr_multiplicative_factor_lambda,
                                       last_epoch=config.start_epoch - 1)
 
@@ -108,6 +106,7 @@ def train():
         if config.use_tpu:
             tracker = xm.RateTracker()
         model.train()
+
         for batch_idx, (input, _) in enumerate(data_loader):
             input = input.to(config.device, non_blocking=True)
             if config.noising_factor is not None:
@@ -115,55 +114,50 @@ def train():
                 false_input.clamp_(min=-1, max=1)
                 output = model(false_input)
             elif config.adversarial_training_mode is True:
+                itr = 0
+                epoch = 0
+                image = input
 
-                for epoch in range(60):
-                    #start = datetime.now()
-                    itr = 0
-                    for data in train_loader:
-                        image,_ = data
-                        iter_steps = 20
-                        n = image.shape
-                        print ("the shape of image before pgd is :")
-                        print (n)
+                iter_steps = 20
+                n = image.shape
+                print ("the shape of image before pgd is :")
+                print (n)
+                adv_img  = pgd_attack(loss_function, model, iter_steps, image, random_start=True, eps=0.2)
+                print ("the shape of image after pgd is :")
+                m = adv_img.shape
+                print (m)
+                image = Variable(image).cuda()
+                adv_img = Variable(adv_img).cuda()
 
-                        adv_img, loss = pgd_attack(loss_function, model, iter_steps,image,  random_start = True, eps = 0.2)
+                # input =  model(image)
+                output_pred = model(adv_img)
+                optimizer.zero_grad()
+                # input is the original image , output is the adversarial model
+                loss = loss_function(input, output_pred)
+                loss.backward()
+                optimizer.step()
+                itr += 1
 
+                train_loss += loss.item()
+                epoch += 1
+#------------------------print results ---------------------------------
+                # for every 10 epochs the results are printed
+                if epoch % 5 == 0:
+                    raw_input = to_img(input.cpu().data)
+                    output_pic = to_img(output_pred.cpu().data)
+                    adv_input = to_img(adv_img.cpu().data)
+                    show_process(raw_input, output_pic, adv_input, train=True, attack=True)
+                # if epoch % 10 == 0:
+                # torch.save({
+                #    'epoch': epoch + last_epoch,
+                #   'model_state_dict': model.state_dict(),
+                #    'optimizer_state_dict': optimizer.state_dict(),
+                #    'loss': loss,
+                #    }, './CIFAR_64_32_random_eps=0.1_0_latent=64_k=0.1.pth')
+                # print(datetime.now() - start)
 
-                        print ("the shape of image after pgd is :")
-                        m = adv_img.shape
-                        print (m)
-                        image = Variable(image).cuda()
-                        adv_img = Variable(adv_img).cuda()
-
-                        input =  model(image)
-                        output_pred = model(adv_img)
-                        # loss = loss_function(output,input )
-                        #
-                        # optimizer.zero_grad()
-                        # loss.backward()
-                        # optimizer.step()
-                        itr += 1
-                        train_loss += loss.item()
-                    #------------------------print results ---------------------------------
-
-                        #for every 10 epochs the results are printed
-                        if epoch % 10 == 0:
-                            raw_input = to_img(input.cpu().data)
-                            print ("this is to image for output")
-                            output_pic = to_img(output_pred.cpu().data)
-                            adv_input = to_img(adv_img.cpu().data)
-                            show_process (raw_input, output_pic, adv_input, train=True, attack=True)
-                        #if epoch % 10 == 0:
-                           # torch.save({
-                            #    'epoch': epoch + last_epoch,
-                            #   'model_state_dict': model.state_dict(),
-                            #    'optimizer_state_dict': optimizer.state_dict(),
-                            #    'loss': loss,
-                            #    }, './CIFAR_64_32_random_eps=0.1_0_latent=64_k=0.1.pth')
-                        #print(datetime.now() - start)
 
             else:
-                #optimizer = Adam(model.parameters(), lr=config.lr)
                 output = model(input)
                 loss = loss_function(input, output)
                 optimizer.zero_grad()
@@ -214,7 +208,7 @@ def train():
                 epoch,
                 (test_loss / deno)
             ),
-                flush=True
+                flush = True
             )
 
             if config.save_interval and (epoch + 1) % config.save_interval == 0:
@@ -336,9 +330,11 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
     #loss function in NLL, no need to convert to One hot vector
     #input = Variable(torch.rand(1), requires_grad=True)
 
+    for p in model.parameters():
+        p.requires_grad = False
+
     train = True
     input = input.cuda()
-   # grad = torch.autograd.grad(loss_function, input)[0]
     original_input = input
     alpha = 0.05
 
@@ -353,14 +349,19 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
 
 
     for i in range(iter_steps):
-        input.requires_grad = True
-        output= model(input)
-        model(original_input)
+        #input.requires_grad = True
+        model.requires_grad = True
+        delta.requires_grad = True
+        output = model(input)
+       # model(original_input)
+
         model.zero_grad()
 
-        loss = loss_function(input, output)
+        loss = loss_function(original_input, input)
         loss.backward()
 
+        for p in model.parameters():
+            p.requires_grad = True
 
         if train:
             adv_inputs = input + alpha * input.grad.sign()
@@ -368,7 +369,7 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
             adv_inputs = input - alpha * input.grad.sign()
         eta = torch.clamp(adv_inputs - original_input, min = -eps, max = eps)
         input = torch.clamp(original_input + eta, min = 0, max=1).detach_()
-    return input,loss
+    return input
 
 
 def show_process (input_img, recons_img, attacked_img , train = True, attack=False):
