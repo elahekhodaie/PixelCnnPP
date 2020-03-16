@@ -130,10 +130,10 @@ def train():
                 adv_img = Variable(adv_img).cuda()
 
                 # input =  model(image)
-                output_pred = model(adv_img)
+                output = model(adv_img)
                 optimizer.zero_grad()
                 # input is the original image , output is the adversarial model
-                loss = loss_function(input, output_pred)
+                loss = loss_function(input, output)
                 loss.backward()
                 optimizer.step()
                 itr += 1
