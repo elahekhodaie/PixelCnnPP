@@ -115,7 +115,6 @@ def train():
                 output = model(false_input)
             elif config.adversarial_training_mode is True:
                 itr = 0
-                epoch = 0
                 image = input
 
                 iter_steps = 20
@@ -139,14 +138,7 @@ def train():
                 itr += 1
 
                 train_loss += loss.item()
-                epoch += 1
 #------------------------print results ---------------------------------
-                # for every 10 epochs the results are printed
-                if epoch % 5 == 0:
-                    raw_input = to_img(image.cpu().data)
-                    output_pic = to_img(adv_img.cpu().data)
-                   # adv_input = to_img(adv_img.cpu().data)
-                    show_process(raw_input, adv_input, train=True, attack=True)
                 # if epoch % 10 == 0:
                 # torch.save({
                 #    'epoch': epoch + last_epoch,
@@ -261,6 +253,12 @@ def train():
                         model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}',
                         save_path=config.evaluation_dir + f'/EvalPlot{model_name}.png'
                     )
+                if epoch %10 == 0:
+                    raw_input = to_img(image.cpu().data)
+                    adv_input = to_img(adv_img.cpu().data)
+                    show_process(raw_input, adv_input, train=True, attack=True)
+
+
                     show_extreme_cases(
                         eval_data,
                         model_name=model_name,
@@ -370,6 +368,7 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
 
 
 def show_process (input_img, attacked_img , train = True, attack=False):
+    print("reached show process function ")
     n = input_img.shape[0]
     if train:
         print("Inputs:")
