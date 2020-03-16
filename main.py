@@ -354,7 +354,7 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
 
         model.zero_grad()
         #delta.requires_grad = True
-        loss = loss_function(original_input,out)
+        loss = loss_function(out,original_input)
         loss.backward()
 
         # for p in model.parameters():
