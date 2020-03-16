@@ -135,8 +135,8 @@ def train():
                         image = Variable(image).cuda()
                         adv_img = Variable(adv_img).cuda()
 
-                        model(image)
-                        output = model(adv_img)
+                        image =  model(image)
+                        output_pred = model(adv_img)
                         # loss = loss_function(output,input )
                         #
                         # optimizer.zero_grad()
@@ -145,12 +145,12 @@ def train():
                         itr += 1
                         train_loss += loss.item()
                     #------------------------print results ---------------------------------
-                   
+
                         #for every 10 epochs the results are printed
                         if epoch % 10 == 0:
                             raw_input = to_img(image.cpu().data)
                             print ("this is to image for output")
-                            output_pic = to_img(output.cpu().data)
+                            output_pic = to_img(output_pred.cpu().data)
                             adv_input = to_img(adv_img.cpu().data)
                             show_process (raw_input, output_pic, adv_input, train=True, attack=True)
                         #if epoch % 10 == 0:
