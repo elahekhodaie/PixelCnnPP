@@ -119,7 +119,7 @@ def train():
                 for epoch in range(60):
                     #start = datetime.now()
                     itr = 0
-                    for data in data_loader:
+                    for data in train_loader:
                         image,_ = data
                         iter_steps = 20
                         adv_img = pgd_attack(loss_function, model, iter_steps,image,  random_start = True, eps = 0.2)
