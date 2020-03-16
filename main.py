@@ -143,10 +143,10 @@ def train():
 #------------------------print results ---------------------------------
                 # for every 10 epochs the results are printed
                 if epoch % 5 == 0:
-                    raw_input = to_img(input.cpu().data)
-                    output_pic = to_img(output_pred.cpu().data)
-                    adv_input = to_img(adv_img.cpu().data)
-                    show_process(raw_input, output_pic, adv_input, train=True, attack=True)
+                    raw_input = to_img(image.cpu().data)
+                    output_pic = to_img(adv_img.cpu().data)
+                   # adv_input = to_img(adv_img.cpu().data)
+                    show_process(raw_input, adv_input, train=True, attack=True)
                 # if epoch % 10 == 0:
                 # torch.save({
                 #    'epoch': epoch + last_epoch,
@@ -372,7 +372,7 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
     return input
 
 
-def show_process (input_img, recons_img, attacked_img , train = True, attack=False):
+def show_process (input_img, attacked_img , train = True, attack=False):
     n = input_img.shape[0]
     if train:
         print("Inputs:")
@@ -382,7 +382,7 @@ def show_process (input_img, recons_img, attacked_img , train = True, attack=Fal
             print("Inputs after attack:")
             show(attacked_img[0:n].view((1, -1, 28, 28))[0].cpu().detach().numpy())
         print("Reconstructions:")
-        show(recons_img[0:n].view((1,-1,28,28))[0].cpu().detach().numpy())
+        show(attacked_img[0:n].view((1,-1,28,28))[0].cpu().detach().numpy())
     else:
         print("Test Inputs:")
         show(input_img[0:n].view((1, -1, 28, 28))[0].cpu())
