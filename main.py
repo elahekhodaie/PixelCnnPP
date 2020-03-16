@@ -344,16 +344,18 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
         delta = torch.clamp(delta, min=-eps, max=eps)
         input += delta
         input = torch.clamp(input, min=-1, max=1)
+        delta.requires_grad = True
     else:
         input = np.copy(original_input)
 
     for i in range(iter_steps):
         #input.requires_grad = True
-        delta.requires_grad = True
+
         output = model(input)
         out = model(input)
 
         model.zero_grad()
+
 
         loss = loss_function(original_input,out)
         loss.backward()
