@@ -12,6 +12,7 @@ from pcnnpp.utils.functions import get_loss_function
 from pcnnpp.utils.evaluation import sample, plot_loss, evaluate, plot_evaluation, show_extreme_cases
 from torch import optim
 import matplotlib.pyplot as plt
+from torch.autograd import Variable
 
 if config.use_tpu:
     import torch_xla
