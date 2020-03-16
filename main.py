@@ -328,6 +328,7 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
     input = input.cuda()
    # grad = torch.autograd.grad(loss_function, input)[0]
     original_input = input
+    alpha = 0.05
 
     #random_start show s that if we start from the input or from a random perturbation of it
     if random_start:
