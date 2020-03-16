@@ -126,23 +126,21 @@ def train():
                         adv_img = Variable(adv_img).cuda()
                         input =model(image)
                         output = model(adv_img)
-                        loss = loss_function(output,input )
-
-                        optimizer.zero_grad()
-                        loss.backward()
-                        optimizer.step()
+                        # loss = loss_function(output,input )
+                        #
+                        # optimizer.zero_grad()
+                        # loss.backward()
+                        # optimizer.step()
                         itr += 1
-                        train_loss += loss.item()
+                        # train_loss += loss.item()
                     #------------------------print results ---------------------------------
                    # print('epoch [{}/{}], loss:{:.4f}.format(epoch + 1, num_epochs, total_loss / itr))
                         #for every 10 epochs the results are printed
                         if epoch % 10 == 0:
-                            raw_input = to_img(x.cpu().data)
-                            output_pic = to_img(y.cpu().data)
+                            raw_input = to_img(image.cpu().data)
+                            output_pic = to_img(output.cpu().data)
                             adv_input = to_img(adv_img.cpu().data)
                             show_process (raw_input, output_pic, adv_input, train=True, attack=True)
-                         #   print(\"loss_latent : \", latent_loss.item())
-                         #   print(\"loss_AE : \", AE_loss.item())
                         #if epoch % 10 == 0:
                            # torch.save({
                             #    'epoch': epoch + last_epoch,
@@ -326,7 +324,9 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
     #loss function in NLL, no need to convert to One hot vector
     #input = Variable(torch.rand(1), requires_grad=True)
 
-    grad = torch.autograd.grad(loss_function, input)[0]
+    train = True
+    input = input.cuda()
+   # grad = torch.autograd.grad(loss_function, input)[0]
     original_input = input
 
     #random_start show s that if we start from the input or from a random perturbation of it
@@ -334,14 +334,20 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
         delta = torch.randn_like(input, dtype=torch.float)
         delta = torch.clamp(delta, min=-eps, max=eps)
         input += delta
-        input = torch.clamp(input, min=0, max=1)
+        input = torch.clamp(input, min=-1, max=1)
     else:
         input = np.copy(original_input)
 
+
     for i in range(iter_steps):
         input.requires_grad = True
-       # output= model(input)
+        output= model(input)
+        model(original_input)
         model.zero_grad()
+
+        loss = loss_function(input, output)
+        loss.backward()
+
 
         if train:
             adv_inputs = input + alpha * input.grad.sign()
@@ -352,7 +358,7 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
     return input
 
 
-def show_process (input_img, recons_img, attacked_img = None, train = True, attack=False):
+def show_process (input_img, recons_img, attacked_img , train = True, attack=False):
     n = input_img.shape[0]
     if train:
         print("Inputs:")
@@ -372,7 +378,6 @@ def show_process (input_img, recons_img, attacked_img = None, train = True, atta
 
 
 def show(image_batch, rows=1):
-        # Set Plot dimensions\n",
         cols = np.ceil(image_batch.shape[0] / rows)
         plt.rcParams['figure.figsize'] = (0.0 + cols, 0.0 + rows) # set default size of plots\n",
         for i in range(image_batch.shape[0]):
