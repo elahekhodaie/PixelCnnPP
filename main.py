@@ -128,7 +128,7 @@ def train():
 
                         adv_img, loss = pgd_attack(loss_function, model, iter_steps,image,  random_start = True, eps = 0.2)
                         image = Variable(image).cuda()
-                        
+
                         print ("the shape of image after pgd is :")
                         m = adv_img.shape
                         print (m)
@@ -401,6 +401,8 @@ def show(image_batch, rows=1):
 
 def to_img(x):
     x = x.clamp(0, 1)
+    print ("the shape in the to image function is :")
+    print (x.shape)
     x = x.view(x.size(0), 28, 28)
     return x
 
