@@ -122,7 +122,7 @@ def train():
                     for data in train_loader:
                         image,_ = data
                         iter_steps = 20
-                        adv_img = pgd_attack(loss_function, model, iter_steps,image,  random_start = True, eps = 0.2)
+                        adv_img, loss = pgd_attack(loss_function, model, iter_steps,image,  random_start = True, eps = 0.2)
                         image = Variable(image).cuda()
                         adv_img = Variable(adv_img).cuda()
                         input =model(image)
@@ -133,7 +133,7 @@ def train():
                         # loss.backward()
                         # optimizer.step()
                         itr += 1
-                        # train_loss += loss.item()
+                        train_loss += loss.item()
                     #------------------------print results ---------------------------------
                    # print('epoch [{}/{}], loss:{:.4f}.format(epoch + 1, num_epochs, total_loss / itr))
                         #for every 10 epochs the results are printed
@@ -357,7 +357,7 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
             adv_inputs = input - alpha * input.grad.sign()
         eta = torch.clamp(adv_inputs - original_input, min = -eps, max = eps)
         input = torch.clamp(original_input + eta, min = 0, max=1).detach_()
-    return input
+    return input,loss
 
 
 def show_process (input_img, recons_img, attacked_img , train = True, attack=False):
