@@ -354,8 +354,8 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
             adv_inputs = input + alpha * input.grad.sign()
         else:
             adv_inputs = input - alpha * input.grad.sign()
-        eta = torch.clamp(adv_inputs - ori_inputs, min = -eps, max = eps)
-        input = torch.clamp(ori_inputs + eta, min = 0, max=1).detach_()
+        eta = torch.clamp(adv_inputs - original_input, min = -eps, max = eps)
+        input = torch.clamp(original_input + eta, min = 0, max=1).detach_()
     return input
 
 
