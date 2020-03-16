@@ -389,6 +389,10 @@ def show(image_batch, rows=1):
         plt.show()
 
 
+def to_img(x):
+    x = x.clamp(-1, 1)
+    x = x.view(x.size(0), 28, 28)
+    return x
 
 
 
