@@ -128,7 +128,6 @@ def train():
                 image = Variable(image).cuda()
                 adv_img = Variable(adv_img).cuda()
 
-                # input =  model(image)
                 output = model(adv_img)
                 optimizer.zero_grad()
                 # input is the original image , output is the adversarial model
@@ -253,7 +252,7 @@ def train():
                         model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}',
                         save_path=config.evaluation_dir + f'/EvalPlot{model_name}.png'
                     )
-                if epoch %10 == 0:
+                if epoch %5 == 0:
                     raw_input = to_img(image.cpu().data)
                     adv_input = to_img(adv_img.cpu().data)
                     show_process(raw_input, adv_input, train=True, attack=True)

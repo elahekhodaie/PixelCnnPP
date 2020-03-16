@@ -16,7 +16,7 @@ load_params = None  # Restore training from previous model checkpoint (specify t
 start_epoch = 0
 
 # data loader
-batch_size = 16  # Batch size during training per GPU
+batch_size = 8  # Batch size during training per GPU
 test_batch_size = batch_size
 dataloader_num_workers = 4
 dataloader_pin_memory = True
