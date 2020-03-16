@@ -349,16 +349,16 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
         input = np.copy(original_input)
 
     for i in range(iter_steps):
-        #input.requires_grad = True
+        input.requires_grad = True
         out = model(input)
 
         model.zero_grad()
-        delta.requires_grad = True
+        #delta.requires_grad = True
         loss = loss_function(original_input,out)
         loss.backward()
 
-        for p in model.parameters():
-            p.requires_grad = True
+        # for p in model.parameters():
+        #     p.requires_grad = True
 
         if train:
             adv_inputs = input + alpha * input.grad.sign()
