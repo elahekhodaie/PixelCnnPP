@@ -122,8 +122,18 @@ def train():
                     for data in train_loader:
                         image,_ = data
                         iter_steps = 20
+                        n = image.shape
+                        print ("the shape of image before pgd is :")
+                        print (n)
+
                         adv_img, loss = pgd_attack(loss_function, model, iter_steps,image,  random_start = True, eps = 0.2)
                         image = Variable(image).cuda()
+                        
+                        print ("the shape of image after pgd is :")
+                        m = adv_img.shape
+                        print (m)
+
+
                         adv_img = Variable(adv_img).cuda()
                         input =model(image)
                         output = model(adv_img)
