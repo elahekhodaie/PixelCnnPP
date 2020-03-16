@@ -330,8 +330,8 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
     #loss function in NLL, no need to convert to One hot vector
     #input = Variable(torch.rand(1), requires_grad=True)
 
-    for p in model.parameters():
-        p.requires_grad = False
+    # for p in model.parameters():
+    #     p.requires_grad = False
 
     train = True
     input = input.cuda()
@@ -352,8 +352,7 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
         #input.requires_grad = True
         out = model(input)
 
-      #  model.zero_grad()
-
+        model.zero_grad()
         delta.requires_grad = True
         loss = loss_function(original_input,out)
         loss.backward()
