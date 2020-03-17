@@ -177,7 +177,7 @@ def train():
                 time_ = time.time()
             del input, _, loss, output
 
-        return new_writes, (last_train_loss / deno)
+        return new_writes, (last_train_loss / deno), image, adv_img
 
     def validation_loop(data_loader, writes=0):
         if torch.cuda.is_available():
@@ -222,7 +222,7 @@ def train():
                 train_loop(para_loader.per_device_loader(config.device), writes)
                 xm.master_print("\tFinished training epoch {}".format(epoch))
             else:
-                new_writes, train_loss = train_loop(train_loader, writes)
+                new_writes, train_loss, image, adv_img = train_loop(train_loader, writes)
                 train_losses.append(train_loss)
                 writes += new_writes
 
@@ -237,22 +237,22 @@ def train():
                 validation_losses.append(validation_loss)
                 model_name = f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}'
                 # evaluation and loss tracking
-                if config.plot_every and (epoch + 1) % config.plot_every == 0:
-                    plot_loss(
-                        train_losses,
-                        validation_losses,
-                        model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-{optimizer.param_groups[0]["lr"]:.7f}'
-                        , save_path=config.losses_dir + f'/Losses{model_name}.png',
-                    )
+                # if config.plot_every and (epoch + 1) % config.plot_every == 0:
+                #     plot_loss(
+                #         train_losses,
+                #         validation_losses,
+                #         model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-{optimizer.param_groups[0]["lr"]:.7f}'
+                #         , save_path=config.losses_dir + f'/Losses{model_name}.png',
+                #     )
 
-                if config.evaluate_every and (epoch + 1) % config.evaluate_every == 0:
-                    eval_data = evaluate(model, dataset_test, test_loader)
-                    plot_evaluation(
-                        eval_data,
-                        model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}',
-                        save_path=config.evaluation_dir + f'/EvalPlot{model_name}.png'
-                    )
-                if epoch %5 == 0:
+                # if config.evaluate_every and (epoch + 1) % config.evaluate_every == 0:
+                #     eval_data = evaluate(model, dataset_test, test_loader)
+                #     plot_evaluation(
+                #         eval_data,
+                #         model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}',
+                #         save_path=config.evaluation_dir + f'/EvalPlot{model_name}.png'
+                #     )
+                if epoch % 5 == 0:
                     raw_input = to_img(image.cpu().data)
                     adv_input = to_img(adv_img.cpu().data)
                     show_process(raw_input, adv_input, train=True, attack=True)
