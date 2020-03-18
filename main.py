@@ -137,7 +137,7 @@ def train():
                 itr += 1
 
                 # ----------------the printing the pictures part ---------------
-                
+
                 train_loss += loss.item()
                 print ("these are the images constructed")
                 raw_input = to_img(image.cpu().data)
@@ -364,8 +364,8 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
         delta.requires_grad = True
         loss = loss_function(original_input, out)
         loss.backward()
-        print ("this is the grad matrix ")
-        print (input.grad)
+        # print ("this is the grad matrix ")
+        # print (input.grad)
 
         for p in model.parameters():
             p.requires_grad = True
