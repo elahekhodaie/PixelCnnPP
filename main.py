@@ -136,11 +136,14 @@ def train():
                 optimizer.step()
                 itr += 1
 
-                train_loss += loss.item()
-                print ("these are the images constructed")
-                raw_input = to_img(image.cpu().data)
-                adv_input = to_img(adv_img.cpu().data)
-                show_process(raw_input, adv_input, train=True, attack=True)
+                if itr%5 == 0:
+                    train_loss += loss.item()
+                    print ("these are the images constructed")
+                    raw_input = to_img(image.cpu().data)
+                    adv_input = to_img(adv_img.cpu().data)
+                    show_process(raw_input, adv_input, train=True, attack=True)
+
+
 #------------------------print results ---------------------------------
                 # if epoch % 10 == 0:
                 # torch.save({
@@ -357,6 +360,8 @@ def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps 
         delta.requires_grad = True
         loss = loss_function(original_input, out)
         loss.backward()
+        print ("this is the grad matrix ")
+        print (input.grad)
 
         for p in model.parameters():
             p.requires_grad = True
