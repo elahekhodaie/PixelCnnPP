@@ -136,15 +136,19 @@ def train():
                 optimizer.step()
                 itr += 1
 
-                if itr%5 == 0:
-                    train_loss += loss.item()
-                    print ("these are the images constructed")
-                    raw_input = to_img(image.cpu().data)
-                    adv_input = to_img(adv_img.cpu().data)
-                    show_process(raw_input, adv_input, train=True, attack=True)
+                # ----------------the printing the pictures part ---------------
+                
+                train_loss += loss.item()
+                print ("these are the images constructed")
+                raw_input = to_img(image.cpu().data)
+                adv_input = to_img(adv_img.cpu().data)
+                show_process(raw_input, adv_input, train=True, attack=True)
 
 
-#------------------------print results ---------------------------------
+
+
+
+            #------------------------print results ---------------------------------
                 # if epoch % 10 == 0:
                 # torch.save({
                 #    'epoch': epoch + last_epoch,
