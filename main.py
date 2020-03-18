@@ -395,7 +395,7 @@ def show(image_batch, rows=1):
         plt.rcParams['figure.figsize'] = (0.0 + cols, 0.0 + rows) # set default size of plots\n",
         for i in range(image_batch.shape[0]):
             plt.subplot(rows, cols, i + 1)
-            plt.imshow(image_batch[i], cmap=gray)
+            plt.imshow(image_batch[i], cmap ='gray')
             plt.axis('off')
         plt.show()
 
