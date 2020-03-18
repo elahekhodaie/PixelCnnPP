@@ -136,7 +136,7 @@ def train():
                 optimizer.step()
                 itr += 1
 
-                # ----------------the printing the pictures part ---------------
+                # ---------------- printing the pictures part ---------------
 
                 train_loss += loss.item()
                 print ("these are the images constructed")
