@@ -36,6 +36,405 @@ model = None
 dataset_train = None
 dataset_validation = None
 
+#
+# def train():
+#     global model
+#     validation_losses = []
+#     train_losses = []
+#     print('starting training')
+#     # starting up data loaders
+#     print("loading training data")
+#     dataset_train = DatasetSelection(train=True, classes=config.normal_classes)
+#     print('loading validation data')
+#     dataset_validation = DatasetSelection(train=False, classes=config.normal_classes)
+#     print('loading test data')
+#     dataset_test = DatasetSelection(train=False, classes=config.test_classes)
+#
+#     train_sampler = None
+#     validation_sampler = None
+#     test_sampler = None
+#     if config.use_tpu:
+#         print('creating tpu sampler')
+#         train_sampler = torch.utils.data.distributed.DistributedSampler(
+#             dataset_train,
+#             num_replicas=xm.xrt_world_size(),
+#             rank=xm.get_ordinal(),
+#             shuffle=True
+#         )
+#         validation_sampler = torch.utils.data.distributed.DistributedSampler(
+#             dataset_validation,
+#             num_replicas=xm.xrt_world_size(),
+#             rank=xm.get_ordinal(),
+#             shuffle=True
+#         )
+#         test_sampler = torch.utils.data.distributed.DistributedSampler(
+#             dataset_test,
+#             num_replicas=xm.xrt_world_size(),
+#             rank=xm.get_ordinal(),
+#             shuffle=False
+#         )
+#         print('tpu samplers created')
+#     train_loader = dataset_train.get_dataloader(sampler=train_sampler, shuffle=not config.use_tpu)
+#     validation_loader = dataset_validation.get_dataloader(sampler=validation_sampler, shuffle=not config.use_tpu, )
+#     test_loader = dataset_test.get_dataloader(sampler=test_sampler, shuffle=False, )
+#
+#     input_shape = dataset_validation.input_shape()
+#     loss_function = get_loss_function(input_shape)
+#
+#     # setting up tensorboard data summerizer
+#     writer = SummaryWriter(log_dir=os.path.join(config.log_dir, config.model_name))
+#
+#     # initializing model
+#     model = init_model(input_shape)
+#
+#     print("initializing optimizer & scheduler")
+#
+#     # change the optimizer to non parameter mode for adversarial  mode
+#
+#     optimizer = Adam(model.parameters(), lr = config.lr)
+#    # optimizer = optim.SGD(model.parameters(), lr = config.lr)
+#     scheduler = lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=config.lr_multiplicative_factor_lambda,
+#                                       last_epoch=config.start_epoch - 1)
+#
+#     def train_loop(data_loader, writes=0):
+#         if torch.cuda.is_available():
+#             torch.cuda.synchronize(device=config.device)
+#         train_loss = 0.
+#         last_train_loss = 0.
+#         new_writes = 0
+#         time_ = time.time()
+#         if config.use_tpu:
+#             tracker = xm.RateTracker()
+#         model.train()
+#
+#         for batch_idx, (input, _) in enumerate(data_loader):
+#             input = input.to(config.device, non_blocking=True)
+#             if config.noising_factor is not None:
+#                 false_input = input + config.noising_factor * config.noise_function(input.shape)
+#                 false_input.clamp_(min=-1, max=1)
+#                 output = model(false_input)
+#             elif config.adversarial_training_mode is True:
+#                 itr = 0
+#                 image = input
+#
+#                 iter_steps = 20
+#                 n = image.shape
+#                 print ("the shape of image before pgd is :")
+#                 print (n)
+#                 adv_img  = pgd_attack(loss_function, model, iter_steps, image, random_start=True, eps=0.2)
+#                 print ("the shape of image after pgd is :")
+#                 m = adv_img.shape
+#                 print (m)
+#                 image = Variable(image).cuda()
+#                 adv_img = Variable(adv_img).cuda()
+#
+#                 output = model(adv_img)
+#                 optimizer.zero_grad()
+#                 # input is the original image , output is the adversarial model
+#                 loss = loss_function(input, output)
+#                 loss.backward()
+#                 optimizer.step()
+#                 itr += 1
+#
+#                 # ---------------- printing the pictures part ---------------
+#
+#                 train_loss += loss.item()
+#                 print ("these are the images constructed")
+#                 raw_input = to_img(image.cpu().data)
+#                 adv_input = to_img(adv_img.cpu().data)
+#                 show_process(raw_input, adv_input, train=True, attack=True)
+#
+#
+#
+#
+#
+#             #------------------------print results ---------------------------------
+#                 # if epoch % 10 == 0:
+#                 # torch.save({
+#                 #    'epoch': epoch + last_epoch,
+#                 #   'model_state_dict': model.state_dict(),
+#                 #    'optimizer_state_dict': optimizer.state_dict(),
+#                 #    'loss': loss,
+#                 #    }, './CIFAR_64_32_random_eps=0.1_0_latent=64_k=0.1.pth')
+#                 # print(datetime.now() - start)
+#
+#
+#             else:
+#                 output = model(input)
+#                 loss = loss_function(input, output)
+#                 optimizer.zero_grad()
+#                 loss.backward()
+#                 train_loss += loss
+#             # if config.use_tpu:
+#             #     xm.optimizer_step(optimizer)
+#             #     tracker.add(config.batch_size)
+#            # else:
+#                 optimizer.step()
+#
+#             if config.print_every and (batch_idx + 1) % config.print_every == 0 :
+#                 deno = config.print_every * config.batch_size * np.prod(input_shape) * np.log(2.)
+#                 if not config.use_tpu:
+#                     writer.add_scalar('train/bpd', (train_loss / deno), writes + new_writes)
+#
+#                 print('\t{:3d}/{:3d} - loss : {:.4f}, time : {:.3f}s'.format(
+#                     batch_idx // config.print_every + 1,
+#                     len(train_loader) // config.print_every,
+#                     (train_loss / deno),
+#                     (time.time() - time_)
+#                 ))
+#                 last_train_loss = train_loss
+#                 train_loss = 0.
+#                 new_writes += 1
+#                 time_ = time.time()
+#             del input, _, loss, output
+#
+#         return new_writes, (last_train_loss / deno)
+#
+#     def validation_loop(data_loader, writes=0):
+#         if torch.cuda.is_available():
+#             torch.cuda.synchronize(device=config.device)
+#         model.eval()
+#         test_loss = 0.
+#         with torch.no_grad():
+#             for batch_idx, (input, _) in enumerate(data_loader):
+#                 input = input.to(config.device, non_blocking=True)
+#                 output = model(input)
+#                 loss = loss_function(input, output)
+#                 test_loss += loss
+#                 del loss, output
+#
+#             deno = batch_idx * config.batch_size * np.prod(input_shape) * np.log(2.)
+#             writer.add_scalar('validation/bpd', (test_loss / deno), writes)
+#             print('\t{}epoch {:4} validation loss : {:.4f}'.format(
+#                 '' if not config.use_tpu else xm.get_ordinal(),
+#                 epoch,
+#                 (test_loss / deno)
+#             ),
+#                 flush = True
+#             )
+#
+#             if config.save_interval and (epoch + 1) % config.save_interval == 0:
+#                 torch.save(model.state_dict(), config.models_dir + '/{}_{}.pth'.format(config.model_name, epoch))
+#                 print('\tsampling epoch {:4}'.format(
+#                     epoch
+#                 ))
+#                 sample_t = sample(model, input_shape)
+#                 sample_t = rescaling_inv(sample_t)
+#                 utils.save_image(sample_t, config.samples_dir + '/{}_{}.png'.format(config.model_name, epoch),
+#                                  nrow=5, padding=0)
+#             return test_loss / deno
+#
+#     try:
+#         writes = 0
+#         for epoch in range(config.start_epoch, config.max_epochs):
+#             print('epoch {:4} - lr: {}'.format(epoch, optimizer.param_groups[0]["lr"]))
+#             if config.use_tpu:
+#                 para_loader = pl.ParallelLoader(train_loader, [config.device])
+#                 train_loop(para_loader.per_device_loader(config.device), writes)
+#                 xm.master_print("\tFinished training epoch {}".format(epoch))
+#             else:
+#                 new_writes, train_loss= train_loop(train_loader, writes)
+#                 train_losses.append(train_loss)
+#                 writes += new_writes
+#
+#             # learning rate schedule
+#             scheduler.step(epoch)
+#
+#             if config.use_tpu:
+#                 para_loader = pl.ParallelLoader(validation_loader, [config.device])
+#                 validation_loop(para_loader.per_device_loader(config.device), writes)
+#             else:
+#                 validation_loss = validation_loop(validation_loader, writes)
+#                 validation_losses.append(validation_loss)
+#                 model_name = f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}'
+#              #   evaluation and losstracking
+#                 if config.plot_every and (epoch + 1) % config.plot_every == 0:
+#                     plot_loss(
+#                         train_losses,
+#                         validation_losses,
+#                         model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-{optimizer.param_groups[0]["lr"]:.7f}'
+#                         , save_path=config.losses_dir + f'/Losses{model_name}.png',
+#                     )
+#
+#                 if config.evaluate_every and (epoch + 1) % config.evaluate_every == 0:
+#                     eval_data = evaluate(model, dataset_test, test_loader)
+#                     plot_evaluation(
+#                         eval_data,
+#                         model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}',
+#                         save_path=config.evaluation_dir + f'/EvalPlot{model_name}.png'
+#                     )
+#                 # if epoch % 5 == 0:
+#                 #     raw_input = to_img(image.cpu().data)
+#                 #     adv_input = to_img(adv_img.cpu().data)
+#                 #     show_process(raw_input, adv_input, train=True, attack=True)
+#
+#
+#                     show_extreme_cases(
+#                         eval_data,
+#                         model_name=model_name,
+#                         save_dir=config.extreme_cases_dir
+#                     )
+#
+#             writes += 1
+#     except KeyboardInterrupt:
+#         pass
+#     return model, train_losses, validation_losses
+#
+# #Pgd attack in the mode we use optimizer
+#
+# # def pgd_attack(optimizer,model, x, y, loss_function, iteration_num , step_size, step_norm, eps, eps_norm,
+# #                                clamp=(-1,1), y_target=None):
+# #     print("has reached this pgd attack")
+# #     #inputs = inputs.cuda()
+# #     x_adv = x.clone().detach().requires_grad_(True).to(x.device)
+# #     targeted = y_target is not None
+# #     num_channels = x.shape[0]
+# #     original_img = x
+# #
+# #     for i in range(iteration_num):
+# #         # x_adv is the adversarial built model which is given to calculate the loss as an input
+# #         _x_adv = x_adv.clone().detach().requires_grad_(True)
+# #         prediction_output = model(_x_adv)
+# # # have to add the model.grad requires  false to turn off other parameters in grad
+# #
+# #         loss = loss_function(prediction_output, y_target if targeted else y)
+# #         optimizer.zero_grad()
+# #         loss.backward()
+# #
+# #        # step_size = alpha
+# #         with torch.no_grad():
+# #             if step_norm == 'inf':
+# #                 gradients = _x_adv.grad.sign() * step_size
+# #             else:
+# #                 gradients = _x_adv.grad * step_size / _x_adv.grad.view(_x_adv.shape[0], -1) \
+# #                     .norm(step_norm, dim=-1) \
+# #                     .view(-1, num_channels, 1, 1)
+# #             if targeted:
+# #                 # in the non training state with incorrect labels
+# #                 x_adv -= gradients
+# #             else:
+# #                 # the model parameters
+# #                 x_adv += gradients
+# #
+# #         # Project back
+# #         #this part calculates the norm and finds the similarity between the constructed image
+# #         # and the first input image , it has two different modes L2 mode or L inf mode
+# #         if eps_norm == 'inf':
+# #             x_adv = torch.max(torch.min(x_adv, x + eps), x - eps)
+# #         else:
+# #             delta = x_adv - x
+# #             # first dimension is the batch dimension
+# #             similarity_value = delta.view(delta.shape[0], -1).norm(norm, dim=1) <= eps
+# #             scaling_factor = delta.view(delta.shape[0], -1).norm(norm, dim=1)
+# #             scaling_factor[similarity_value] = eps
+# #             delta *= eps / scaling_factor.view(-1, 1, 1, 1)
+# #             x_adv = x + delta
+# #         #the clamp is between -1, 1
+# #         x_adv = x_adv.clamp(*clamp)
+# #     return x_adv.detach()
+# #
+#
+# def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps = 0.2):
+#     #loss function in NLL, no need to convert to One hot vector
+#     #input = Variable(torch.rand(1), requires_grad=True)
+#
+#     for p in model.parameters():
+#         p.requires_grad = False
+#
+#     train = True
+#     input = input.cuda()
+#     original_input = input
+#     alpha = 0.05
+#
+#     #random_start show s that if we start from the input or from a random perturbation of it
+#     if random_start:
+#         delta = torch.randn_like(input, dtype=torch.float)
+#         delta = torch.clamp(delta, min=-eps, max=eps)
+#         input += delta
+#         input = torch.clamp(input, min=-1, max=1)
+#
+#     else:
+#         input = np.copy(original_input)
+#
+#     for i in range(iter_steps):
+#         input.requires_grad = True
+#         out = model(input)
+#
+#         model.zero_grad()
+#         delta.requires_grad = True
+#         loss = loss_function(original_input, out)
+#         loss.backward()
+#         # print ("this is the grad matrix ")
+#         # print (input.grad)
+#
+#         for p in model.parameters():
+#             p.requires_grad = True
+#
+#         if train:
+#             adv_inputs = input + alpha * input.grad.sign()
+#         else:
+#             adv_inputs = input - alpha * input.grad.sign()
+#         eta = torch.clamp(adv_inputs - original_input, min = -eps, max = eps)
+#         input = torch.clamp(original_input + eta, min = 0, max=1).detach_()
+#     return input
+#
+#
+# def show_process (input_img, attacked_img , train = True, attack=False):
+#     print("reached show process function ")
+#     n = input_img.shape[0]
+#     if train:
+#         print("Inputs:")
+#         show(input_img[0:n].view((1,-1,28,28))[0].cpu())
+#         # Calculate reconstructions\n",
+#         if attack:
+#             print("Inputs after attack:")
+#             show(attacked_img[0:n].view((1, -1, 28, 28))[0].cpu().detach().numpy())
+#         print("Reconstructions:")
+#         show(attacked_img[0:n].view((1,-1,28,28))[0].cpu().detach().numpy())
+#     else:
+#         print("Test Inputs:")
+#         show(input_img[0:n].view((1, -1, 28, 28))[0].cpu())
+#         # Calculate reconstructions\n",
+#         print("Test Reconstructions:")
+#         show(recons_img[0:n].view((1, -1, 28, 28))[0].cpu().detach().numpy())
+#
+#
+# def show(image_batch, rows=1):
+#         cols = np.ceil(image_batch.shape[0] / rows)
+#         plt.rcParams['figure.figsize'] = (0.0 + cols, 0.0 + rows) # set default size of plots\n",
+#         for i in range(image_batch.shape[0]):
+#             plt.subplot(rows, cols, i + 1)
+#             plt.imshow(image_batch[i], cmap ='gray')
+#             plt.axis('off')
+#         plt.show()
+#
+#
+# def to_img(x):
+#     x = x.clamp(0, 1)
+#     print ("the shape in the to image function is :")
+#     print (x.shape)
+#     x = x.view(x.size(0), 28, 28)
+#     return x
+#
+#
+#
+# if config.use_tpu:
+#     def train_on_tpu():
+#         def trainer(rank, CONFIG):
+#             global config
+#             config = CONFIG
+#             config.device = xm.xla_device()
+#             torch.set_default_tensor_type('torch.FloatTensor')
+#             train()
+#
+#         xmp.spawn(trainer, args=(config,), nprocs=config.num_cores,
+#                   start_method='fork')
+#
+# if config.train:
+#     if config.use_tpu:
+#         train_on_tpu()
+#     else:
+#         train()
 
 def train():
     global model
@@ -88,11 +487,7 @@ def train():
     model = init_model(input_shape)
 
     print("initializing optimizer & scheduler")
-
-    # change the optimizer to non parameter mode for adversarial  mode
-
-    optimizer = Adam(model.parameters(), lr = config.lr)
-   # optimizer = optim.SGD(model.parameters(), lr = config.lr)
+    optimizer = Adam(model.parameters(), lr=config.lr)
     scheduler = lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=config.lr_multiplicative_factor_lambda,
                                       last_epoch=config.start_epoch - 1)
 
@@ -106,71 +501,23 @@ def train():
         if config.use_tpu:
             tracker = xm.RateTracker()
         model.train()
-
         for batch_idx, (input, _) in enumerate(data_loader):
             input = input.to(config.device, non_blocking=True)
             if config.noising_factor is not None:
                 false_input = input + config.noising_factor * config.noise_function(input.shape)
                 false_input.clamp_(min=-1, max=1)
                 output = model(false_input)
-            elif config.adversarial_training_mode is True:
-                itr = 0
-                image = input
-
-                iter_steps = 20
-                n = image.shape
-                print ("the shape of image before pgd is :")
-                print (n)
-                adv_img  = pgd_attack(loss_function, model, iter_steps, image, random_start=True, eps=0.2)
-                print ("the shape of image after pgd is :")
-                m = adv_img.shape
-                print (m)
-                image = Variable(image).cuda()
-                adv_img = Variable(adv_img).cuda()
-
-                output = model(adv_img)
-                optimizer.zero_grad()
-                # input is the original image , output is the adversarial model
-                loss = loss_function(input, output)
-                loss.backward()
-                optimizer.step()
-                itr += 1
-
-                # ---------------- printing the pictures part ---------------
-
-                train_loss += loss.item()
-                print ("these are the images constructed")
-                raw_input = to_img(image.cpu().data)
-                adv_input = to_img(adv_img.cpu().data)
-                show_process(raw_input, adv_input, train=True, attack=True)
-
-
-
-
-
-            #------------------------print results ---------------------------------
-                # if epoch % 10 == 0:
-                # torch.save({
-                #    'epoch': epoch + last_epoch,
-                #   'model_state_dict': model.state_dict(),
-                #    'optimizer_state_dict': optimizer.state_dict(),
-                #    'loss': loss,
-                #    }, './CIFAR_64_32_random_eps=0.1_0_latent=64_k=0.1.pth')
-                # print(datetime.now() - start)
-
-
             else:
                 output = model(input)
-                loss = loss_function(input, output)
-                optimizer.zero_grad()
-                loss.backward()
-                train_loss += loss
-            # if config.use_tpu:
-            #     xm.optimizer_step(optimizer)
-            #     tracker.add(config.batch_size)
-           # else:
+            loss = loss_function(input, output)
+            optimizer.zero_grad()
+            loss.backward()
+            if config.use_tpu:
+                xm.optimizer_step(optimizer)
+                tracker.add(config.batch_size)
+            else:
                 optimizer.step()
-
+            train_loss += loss
             if config.print_every and (batch_idx + 1) % config.print_every == 0 :
                 deno = config.print_every * config.batch_size * np.prod(input_shape) * np.log(2.)
                 if not config.use_tpu:
@@ -210,7 +557,7 @@ def train():
                 epoch,
                 (test_loss / deno)
             ),
-                flush = True
+                flush=True
             )
 
             if config.save_interval and (epoch + 1) % config.save_interval == 0:
@@ -233,7 +580,7 @@ def train():
                 train_loop(para_loader.per_device_loader(config.device), writes)
                 xm.master_print("\tFinished training epoch {}".format(epoch))
             else:
-                new_writes, train_loss= train_loop(train_loader, writes)
+                new_writes, train_loss = train_loop(train_loader, writes)
                 train_losses.append(train_loss)
                 writes += new_writes
 
@@ -247,7 +594,7 @@ def train():
                 validation_loss = validation_loop(validation_loader, writes)
                 validation_losses.append(validation_loss)
                 model_name = f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}'
-             #   evaluation and losstracking
+                # evaluation and loss tracking
                 if config.plot_every and (epoch + 1) % config.plot_every == 0:
                     plot_loss(
                         train_losses,
@@ -263,12 +610,6 @@ def train():
                         model_name=f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}',
                         save_path=config.evaluation_dir + f'/EvalPlot{model_name}.png'
                     )
-                # if epoch % 5 == 0:
-                #     raw_input = to_img(image.cpu().data)
-                #     adv_input = to_img(adv_img.cpu().data)
-                #     show_process(raw_input, adv_input, train=True, attack=True)
-
-
                     show_extreme_cases(
                         eval_data,
                         model_name=model_name,
@@ -279,143 +620,6 @@ def train():
     except KeyboardInterrupt:
         pass
     return model, train_losses, validation_losses
-
-#Pgd attack in the mode we use optimizer
-
-# def pgd_attack(optimizer,model, x, y, loss_function, iteration_num , step_size, step_norm, eps, eps_norm,
-#                                clamp=(-1,1), y_target=None):
-#     print("has reached this pgd attack")
-#     #inputs = inputs.cuda()
-#     x_adv = x.clone().detach().requires_grad_(True).to(x.device)
-#     targeted = y_target is not None
-#     num_channels = x.shape[0]
-#     original_img = x
-#
-#     for i in range(iteration_num):
-#         # x_adv is the adversarial built model which is given to calculate the loss as an input
-#         _x_adv = x_adv.clone().detach().requires_grad_(True)
-#         prediction_output = model(_x_adv)
-# # have to add the model.grad requires  false to turn off other parameters in grad
-#
-#         loss = loss_function(prediction_output, y_target if targeted else y)
-#         optimizer.zero_grad()
-#         loss.backward()
-#
-#        # step_size = alpha
-#         with torch.no_grad():
-#             if step_norm == 'inf':
-#                 gradients = _x_adv.grad.sign() * step_size
-#             else:
-#                 gradients = _x_adv.grad * step_size / _x_adv.grad.view(_x_adv.shape[0], -1) \
-#                     .norm(step_norm, dim=-1) \
-#                     .view(-1, num_channels, 1, 1)
-#             if targeted:
-#                 # in the non training state with incorrect labels
-#                 x_adv -= gradients
-#             else:
-#                 # the model parameters
-#                 x_adv += gradients
-#
-#         # Project back
-#         #this part calculates the norm and finds the similarity between the constructed image
-#         # and the first input image , it has two different modes L2 mode or L inf mode
-#         if eps_norm == 'inf':
-#             x_adv = torch.max(torch.min(x_adv, x + eps), x - eps)
-#         else:
-#             delta = x_adv - x
-#             # first dimension is the batch dimension
-#             similarity_value = delta.view(delta.shape[0], -1).norm(norm, dim=1) <= eps
-#             scaling_factor = delta.view(delta.shape[0], -1).norm(norm, dim=1)
-#             scaling_factor[similarity_value] = eps
-#             delta *= eps / scaling_factor.view(-1, 1, 1, 1)
-#             x_adv = x + delta
-#         #the clamp is between -1, 1
-#         x_adv = x_adv.clamp(*clamp)
-#     return x_adv.detach()
-#
-
-def pgd_attack(loss_function, model, iter_steps,input, random_start = True, eps = 0.2):
-    #loss function in NLL, no need to convert to One hot vector
-    #input = Variable(torch.rand(1), requires_grad=True)
-
-    for p in model.parameters():
-        p.requires_grad = False
-
-    train = True
-    input = input.cuda()
-    original_input = input
-    alpha = 0.05
-
-    #random_start show s that if we start from the input or from a random perturbation of it
-    if random_start:
-        delta = torch.randn_like(input, dtype=torch.float)
-        delta = torch.clamp(delta, min=-eps, max=eps)
-        input += delta
-        input = torch.clamp(input, min=-1, max=1)
-
-    else:
-        input = np.copy(original_input)
-
-    for i in range(iter_steps):
-        input.requires_grad = True
-        out = model(input)
-
-        model.zero_grad()
-        delta.requires_grad = True
-        loss = loss_function(original_input, out)
-        loss.backward()
-        # print ("this is the grad matrix ")
-        # print (input.grad)
-
-        for p in model.parameters():
-            p.requires_grad = True
-
-        if train:
-            adv_inputs = input + alpha * input.grad.sign()
-        else:
-            adv_inputs = input - alpha * input.grad.sign()
-        eta = torch.clamp(adv_inputs - original_input, min = -eps, max = eps)
-        input = torch.clamp(original_input + eta, min = 0, max=1).detach_()
-    return input
-
-
-def show_process (input_img, attacked_img , train = True, attack=False):
-    print("reached show process function ")
-    n = input_img.shape[0]
-    if train:
-        print("Inputs:")
-        show(input_img[0:n].view((1,-1,28,28))[0].cpu())
-        # Calculate reconstructions\n",
-        if attack:
-            print("Inputs after attack:")
-            show(attacked_img[0:n].view((1, -1, 28, 28))[0].cpu().detach().numpy())
-        print("Reconstructions:")
-        show(attacked_img[0:n].view((1,-1,28,28))[0].cpu().detach().numpy())
-    else:
-        print("Test Inputs:")
-        show(input_img[0:n].view((1, -1, 28, 28))[0].cpu())
-        # Calculate reconstructions\n",
-        print("Test Reconstructions:")
-        show(recons_img[0:n].view((1, -1, 28, 28))[0].cpu().detach().numpy())
-
-
-def show(image_batch, rows=1):
-        cols = np.ceil(image_batch.shape[0] / rows)
-        plt.rcParams['figure.figsize'] = (0.0 + cols, 0.0 + rows) # set default size of plots\n",
-        for i in range(image_batch.shape[0]):
-            plt.subplot(rows, cols, i + 1)
-            plt.imshow(image_batch[i], cmap ='gray')
-            plt.axis('off')
-        plt.show()
-
-
-def to_img(x):
-    x = x.clamp(0, 1)
-    print ("the shape in the to image function is :")
-    print (x.shape)
-    x = x.view(x.size(0), 28, 28)
-    return x
-
 
 
 if config.use_tpu:
