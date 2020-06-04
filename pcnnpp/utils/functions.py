@@ -151,7 +151,8 @@ def log_prob_hitmap_1d(x, l):
    # print (f'the log prob hitmap dims are {log_sum_exp(log_probs)[0] } and {log_sum_exp(log_probs)[1]}')
 
     log_sum_to_gpu = log_sum_exp(log_probs).to(config.device, non_blocking=True)
-    return log_sum_to_gpu * torch.arange(28*28, 0, -1).view(1, 28, 28)
+    arange = torch.arange(28*28, 0, -1).view(1, 28, 28).to(config.device, non_blocking=True)
+    return log_sum_to_gpu * arange
 
 
 def discretized_mix_logistic_loss_1d(x, l):
