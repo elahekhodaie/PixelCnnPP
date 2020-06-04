@@ -148,7 +148,8 @@ def log_prob_hitmap_1d(x, l):
     log_probs = cond * log_cdf_plus + (1. - cond) * inner_out
     log_probs = torch.sum(log_probs, dim=3) + log_prob_from_logits(logit_probs)
 
-    return log_sum_exp(log_probs)
+    print (f'the log prob hitmap dims are {log_sum_exp(log_probs)[0] } and {log_sum_exp(log_probs)[1]}')
+    return log_sum_exp(log_probs) * torch.arrange(28*28, 0, -1).view(1, 28, 28)
 
 
 def discretized_mix_logistic_loss_1d(x, l):
@@ -183,7 +184,7 @@ def get_loss_function(input_shape):
         return discretized_mix_logistic_loss
     return discretized_mix_logistic_loss_1d
 
-
+# for MNIST data set the log prob 1d hitmap is used
 def get_hitmap_function(input_shape):
     if input_shape[2] == 3:
         return log_prob_hitmap
