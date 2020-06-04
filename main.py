@@ -508,6 +508,7 @@ def train():
                 false_input.clamp_(min=-1, max=1)
                 output = model(false_input)
             else:
+                print(f'noising factor in none')
                 output = model(input)
             loss = loss_function(input, output)
             optimizer.zero_grad()
@@ -519,6 +520,7 @@ def train():
                 optimizer.step()
             train_loss += loss
             if config.print_every and (batch_idx + 1) % config.print_every == 0 :
+                print (f'this prints every {config.print_every} times')
                 deno = config.print_every * config.batch_size * np.prod(input_shape) * np.log(2.)
                 if not config.use_tpu:
                     writer.add_scalar('train/bpd', (train_loss / deno), writes + new_writes)
@@ -543,6 +545,7 @@ def train():
         model.eval()
         test_loss = 0.
         with torch.no_grad():
+            print (f'in torch.grad')
             for batch_idx, (input, _) in enumerate(data_loader):
                 input = input.to(config.device, non_blocking=True)
                 output = model(input)
@@ -561,6 +564,7 @@ def train():
             )
 
             if config.save_interval and (epoch + 1) % config.save_interval == 0:
+                print (f'inside sampling if')
                 torch.save(model.state_dict(), config.models_dir + '/{}_{}.pth'.format(config.model_name, epoch))
                 print('\tsampling epoch {:4}'.format(
                     epoch
@@ -596,6 +600,7 @@ def train():
                 model_name = f'{"DCNNpp" if config.noising_factor is not None else "PCNNpp"}-E{epoch}'
                 # evaluation and loss tracking
                 if config.plot_every and (epoch + 1) % config.plot_every == 0:
+                    print (f'inside ploting loss : ')
                     plot_loss(
                         train_losses,
                         validation_losses,
